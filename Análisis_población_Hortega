@@ -3137,7 +3137,733 @@ data_h = data.frame(Haplo = factor(grupos$Haplotype) , data)
 }
 ``` 
 
+HAPLOTIPOS:
+
+
 
 ```{r}
-length(which(hortega_s$diabetes.mellitus.type2 == 0))
+Haplotype = read_csv("~/Nextcloud/RebecaMeleroTesis/snpspanel/data/plink_haplo.csv", col_names = FALSE)
+Haplotype = data.frame(Haplotype)
+Haplotype$X1[31] = "* rs1800980 rs1805165 rs6750998"
+
+Haplotype_LD = function(i, Haplotype, list_genes, Info_snp){
+#Conjunto de SNPs del gen:
+  i = 10
+x_10 = list_genes[[i]]$refsnp_id
+
+k = c()
+for(i in 1:length(x_10)){
+# Buscamos si los SNPs pertenecen a algun haplotipo:
+k1 = grep(x_10[i], Haplotype$X1)
+# En k tendremos todos los haplotipos en los que se encuentran nuestros SNPs
+k = c(k, k1)
+}
+
+k2 = unique(k)
+
+k4 = NULL
+for(j in 1:length(k2)){
+  # Quiero coger las SNPs del los haplotipos y meterlos en una lista:
+  
+  l = Haplotype$X1[k2[j]]
+  l1 = unlist(strsplit(l, " "))
+  l2 = l1[-1]
+k6 = NULL
+ for(z in 1:length(l2)){
+ k7 = Info_snp[Info_snp$refsnp_id == l2[z],]
+ k6 = rbind(k6,k7)
+ }
+ k4[[j]] = k6
+}
+k4
+}
+
+k4[[1]]
+
+ Haplotype_LD(i = i, Haplotype = Haplotype, 
+                               list_genes = list_genes, Info_snp = Info_snp)
+ Info_snp[Info_snp$refsnp_id =="rs2867125",]
 ```
+
+```{r}
+load( "~/Nextcloud/RebecaMeleroTesis/Hortega/data/list_genes_hwe.rda")
+load("~/Nextcloud/RebecaMeleroTesis/Hortega/data/hortega_s.rda")
+data = hortega_s
+
+Haplotype_EM_1 = function(i, SNP, list_genes, data, response, var, confusion_var, res_genes){
+ d = data.frame(list_genes[[i]]$ensembl_gene_name[1])
+       d1 = as.character(d[1,])
+       res_genes[i,1] = d1
+       res_genes[i,2] = str_c(SNP, collapse = "/")
+
+      SNP_h = data[,SNP]
+      Data = data.frame(SNP_h, response = response, var =  var, confusion_var)
+      
+   
+      Data0 = Data[complete.cases(Data),]
+      
+     Data0_SNP = Data0[,grep("^rs", colnames(Data0))]
+     Geno_h = data.frame(rep(0,nrow(Data0_SNP)))
+     for(j in 1:ncol(Data0_SNP)){
+      x = data.frame(str_split_fixed(Data0_SNP[,j], "/", 2))
+      x1 = paste(colnames(Data0_SNP)[j],1,sep = "_")
+      x2 = paste(colnames(Data0_SNP)[j],2,sep = "_")
+      colnames(x) = c(x1,x2)
+      Geno_h = cbind(Geno_h,x)
+     }
+   Data0_cov = Data0[,-1:-ncol(Data0_SNP)]
+   Geno_h =  Geno_h[,-1]
+   Geno_h0 = data.frame(Geno_h, Data0_cov)
+   SNPnames_h = colnames(Geno_h)
+   
+     
+ Geno_d.C <- setupGeno(Geno_h)
+ Dat <- data.frame(Geno_d.C , Data0_cov)
+ View(Dat)
+
+ #Asociacion haplotipo con la variable respuesta
+ 
+  res_null = glm(response ~ 1, data = Dat, family = "binomial")
+
+  res0= haplo.glm(response ~ Geno_d.C + var , data= Dat,
+ allele.lev=attributes(Geno_d.C)$unique.alleles, family = "binomial")
+  
+ z1 =  1 - pchisq(res_null$deviance - res0$deviance, length(names(res0$coefficients))) 
+ res_genes[i,3] = z1
+ 
+ #Ajuste por covariables de confusion
+ 
+  res0_c= glm(response ~ var + BMI + Age + Gender, data = Dat, family = "binomial")
+  
+  res_c = haplo.glm(response ~ Geno_d.C + var + BMI + Age + Gender , data= Dat,
+ allele.lev=attributes(Geno_d.C)$unique.alleles, family = "binomial")
+  
+ s1 =  1 - pchisq(res0_c$deviance - res_c$deviance, length(names(res_c$coefficients))) 
+ res_genes[i,5] = s1
+  
+ #Asociación con la covariable:
+ 
+ res_c = haplo.glm(response ~ Geno_d.C  + BMI + Age + Gender , data= Dat,
+ allele.lev=attributes(Geno_d.C)$unique.alleles, family = "binomial")
+ 
+ res_c1 = haplo.glm(response ~ Geno_d.C + var + BMI + Age + Gender , data= Dat,
+ allele.lev=attributes(Geno_d.C)$unique.alleles, family = "binomial")
+ 
+ f1 = anova(res_c,res_c1)
+ res_genes[i,7] = s1
+ 
+ res_genes
+}
+
+res_genes = res_genes[-218,]
+
+res_genes_NA = which(rowSums(is.na(res_genes)) > 0)
+res_genes_NA0 = res_genes[-res_genes_NA,] 
+
+res_genes[,4] = p.adjust(res_genes$p.value_H,method = "BH")
+res_genes[,6] = p.adjust(res_genes$p.value_c,method = "BH")
+res_genes[,8] = p.adjust(res_genes$p.value_v,method = "BH")
+colnames(res_genes) = c(colnames(res_genes)[-8], "Adj.p.value_v")
+
+which(res_genes$p.value_c < 0.05)
+
+157 158 159 206
+
+list_genes[[158]]
+```
+
+
+```{r}
+response = hortega_s$diabetes.mellitus.type2
+var = hortega_s$os.mda.umol.by.mg.prot
+confusion_var = data.frame(BMI = hortega_s$bmi, Age = hortega_s$age, Gender = hortega_s$gender)
+data = hortega_s
+
+res_genes = data.frame(matrix(ncol = 8, nrow = length(m4)))
+ d2 = c("Name", "SNPs","p.value_H", "Adj.p.value_H", "p.value_c","Adj.p.value_c",
+        "p.value_v","Adj.p.value_c")
+       colnames(res_genes) = d2
+       for ( z in 1:length(m4)){
+         i = m4[z]
+       SNP = list_genes[[i]]$refsnp_id
+       
+      if( length(SNP) >= 2){ 
+        
+        d = data.frame(list_genes[[i]]$ensembl_gene_name[1])
+       d1 = as.character(d[1,])
+       res_genes[z,1] = d1
+       res_genes[z,2] = str_c(SNP, collapse = "/")
+
+      SNP_h = data[,SNP]
+      Data = data.frame(SNP_h, response = response, var =  var, confusion_var)
+      
+   
+      Data0 = Data[complete.cases(Data),]
+      
+     Data0_SNP = Data0[,grep("^rs", colnames(Data0))]
+     Geno_h = data.frame(rep(0,nrow(Data0_SNP)))
+     for(j in 1:ncol(Data0_SNP)){
+      x = data.frame(str_split_fixed(Data0_SNP[,j], "/", 2))
+      x1 = paste(colnames(Data0_SNP)[j],1,sep = "_")
+      x2 = paste(colnames(Data0_SNP)[j],2,sep = "_")
+      colnames(x) = c(x1,x2)
+      Geno_h = cbind(Geno_h,x)
+     }
+   Data0_cov = Data0[,-1:-ncol(Data0_SNP)]
+   Geno_h =  Geno_h[,-1]
+   Geno_h0 = data.frame(Geno_h, Data0_cov)
+   SNPnames_h = colnames(Geno_h)
+   
+     
+ Geno_d.C <- setupGeno(Geno_h)
+ Dat <- data.frame(Geno_d.C , Data0_cov)
+
+ #Asociacion haplotipo con la variable respuesta
+ 
+  res_null = glm(response ~ 1, data = Dat, family = "binomial")
+
+  res0= haplo.glm(response ~ Geno_d.C  , data= Dat,
+ allele.lev=attributes(Geno_d.C)$unique.alleles, family = "binomial")
+  
+ z1 =  1 - pchisq(res_null$deviance - res0$deviance, length(names(res0$coefficients))) 
+ res_genes[z,3] = z1
+ 
+ #Ajuste por covariables de confusion
+ 
+  res0_c= glm(response ~ var + BMI + Age + Gender, data = Dat, family = "binomial")
+  
+  res_c = haplo.glm(response ~ Geno_d.C + var + BMI + Age + Gender , data= Dat,
+ allele.lev=attributes(Geno_d.C)$unique.alleles, family = "binomial")
+  
+  summary(res_c)
+  
+ s1 =  1 - pchisq(res0_c$deviance - res_c$deviance, length(names(res_c$coefficients))) 
+ res_genes[z,5] = s1
+  
+ #Asociación con la covariable:
+ 
+ res_c = haplo.glm(response ~ Geno_d.C  + BMI + Age + Gender , data= Dat,
+ allele.lev=attributes(Geno_d.C)$unique.alleles, family = "binomial")
+ 
+ res_c1 = haplo.glm(response ~ Geno_d.C + var + BMI + Age + Gender , data= Dat,
+ allele.lev=attributes(Geno_d.C)$unique.alleles, family = "binomial")
+ 
+ f1 = anova(res_c,res_c1)
+ res_genes[z,7] = s1
+   } 
+       else {
+   res_genes[z,1] = d1
+   res_genes[z,2] = SNP
+   res_genes[z,3] = NA
+   res_genes[z,4] = NA
+   res_genes[z,5] = NA
+   res_genes[z,6] = NA
+   res_genes[z,7] = NA
+   res_genes[z,7] = NA
+   res_genes[z,8] = NA
+ }
+       }
+       
+       View(res_genes)
+       m4[46]
+       which(res_genes$Adj.p.value_c < 0.05)
+       142 157 158 159 206
+```
+
+```{r}
+
+res_genes = data.frame(matrix(ncol = 8, nrow = length(genes)))
+ d2 = c("Name", "SNPs","p.value_H", "Adj.p.value_H", "p.value_c","Adj.p.value_c",
+        "p.value_v","Adj.p.value_c")
+       colnames(res_genes) = d2
+       for ( i in 56:length(genes)){
+      
+       SNP = list_genes[[i]]$refsnp_id
+       
+      if( length(SNP) >= 2){ 
+        
+        d = data.frame(list_genes[[i]]$ensembl_gene_name[1])
+       d1 = as.character(d[1,])
+       res_genes[i,1] = d1
+       res_genes[i,2] = str_c(SNP, collapse = "/")
+
+      SNP_h = data[,SNP]
+      Data = data.frame(SNP_h, response = response, var =  var, confusion_var)
+      
+   
+      Data0 = Data[complete.cases(Data),]
+      
+     Data0_SNP = Data0[,grep("^rs", colnames(Data0))]
+     Geno_h = data.frame(rep(0,nrow(Data0_SNP)))
+     for(j in 1:ncol(Data0_SNP)){
+      x = data.frame(str_split_fixed(Data0_SNP[,j], "/", 2))
+      x1 = paste(colnames(Data0_SNP)[j],1,sep = "_")
+      x2 = paste(colnames(Data0_SNP)[j],2,sep = "_")
+      colnames(x) = c(x1,x2)
+      Geno_h = cbind(Geno_h,x)
+     }
+   Data0_cov = Data0[,-1:-ncol(Data0_SNP)]
+   Geno_h =  Geno_h[,-1]
+   Geno_h0 = data.frame(Geno_h, Data0_cov)
+   SNPnames_h = colnames(Geno_h)
+   
+     
+ Geno_d.C <- setupGeno(Geno_h)
+ Dat <- data.frame(Geno_d.C , Data0_cov)
+
+ #Asociacion haplotipo con la variable respuesta
+ 
+  res_null = glm(response ~ 1, data = Dat, family = "binomial")
+
+  res0= haplo.glm(response ~ Geno_d.C  , data= Dat,
+ allele.lev=attributes(Geno_d.C)$unique.alleles, family = "binomial")
+  
+ z1 =  1 - pchisq(res_null$deviance - res0$deviance, length(names(res0$coefficients))) 
+ res_genes[i,3] = z1
+ 
+ #Ajuste por covariables de confusion
+ 
+  res0_c= glm(response ~ var + BMI + Age + Gender, data = Dat, family = "binomial")
+  
+  res_c = haplo.glm(response ~ Geno_d.C + var + BMI + Age + Gender , data= Dat,
+ allele.lev=attributes(Geno_d.C)$unique.alleles, family = "binomial")
+  
+ s1 =  1 - pchisq(res0_c$deviance - res_c$deviance, length(names(res_c$coefficients))) 
+ res_genes[i,5] = s1
+  
+ #Asociación con la covariable:
+ 
+ res_c = haplo.glm(response ~ Geno_d.C  + BMI + Age + Gender , data= Dat,
+ allele.lev=attributes(Geno_d.C)$unique.alleles, family = "binomial")
+ 
+ res_c1 = haplo.glm(response ~ Geno_d.C + var + BMI + Age + Gender , data= Dat,
+ allele.lev=attributes(Geno_d.C)$unique.alleles, family = "binomial")
+ 
+ f1 = anova(res_c,res_c1)
+ res_genes[i,7] = s1
+   } 
+       else {
+   res_genes[i,1] = d1
+   res_genes[i,2] = SNP
+   res_genes[i,3] = NA
+   res_genes[i,4] = NA
+   res_genes[i,5] = NA
+   res_genes[i,6] = NA
+   res_genes[i,7] = NA
+   res_genes[i,7] = NA
+   res_genes[i,8] = NA
+ }
+       }
+       
+  res_genes[,4] = p.adjust(res_genes$p.value_H,method = "BH")
+res_genes[,6] = p.adjust(res_genes$p.value_c,method = "BH")
+res_genes[,8] = p.adjust(res_genes$p.value_v,method = "BH")
+colnames(res_genes) = c(colnames(res_genes)[-8], "Adj.p.value_v")
+       View(res_genes)
+       
+       t = which(res_genes$p.value_v < 0.05)
+       
+      res_genes_1 = res_genes[,-4]
+      res_genes_1 = res_genes_1[,-5]
+      res_genes_1 = res_genes_1[,-6]
+      
+      u = match(Info_genes$ensembl_gene_id, res_genes_1$Name )
+       
+ print(xtable(res_genes_1[t,], digits = c(6,6,6,6,6,6)), include.rownames= FALSE)
+ 
+ 
+ MDA: 
+   
+   Geno_d.C.rare:var74	-3.273244e+01	4.181160e-01	-7.828555e+01	0.000000e+00	155	0.000000e+00
+Geno_d.C.18:var4	-1.484842e+01	1.698085e-01	-8.744219e+01	0.000000e+00	156	0.000000e+00
+Geno_d.C.7:var22	7.771542e+02	6.361658e-10	1.221622e+12	0.000000e+00	157	0.000000e+00
+Geno_d.C.12:var9	-2.533546e+01	6.038141e-01	-4.195905e+01	0.000000e+00	157	0.000000e+00
+Geno_d.C.35:var4	-8.641143e+00	3.420313e-01	-2.526419e+01	0.000000e+00	157	0.000000e+00
+       
+```
+
+
+```{r}
+
+```
+
+
+
+```{r}
+response = hortega_s$diabetes.mellitus.type2
+var= hortega_s$os.mda.umol.by.mg.prot
+res_total = NULL
+       
+       for( i in 56:length(genes)){
+         
+  SNP = list_genes[[i]]$refsnp_id
+       
+      if( length(SNP) >= 2){ 
+        d = data.frame(list_genes[[i]]$ensembl_gene_name[1])
+       d1 = as.character(d[1,])
+       res_genes[i,1] = d1
+       res_genes[i,2] = str_c(SNP, collapse = "/")
+
+      SNP_h = data[,SNP]
+      Data = data.frame(SNP_h, response = response, var =  var, confusion_var)
+      
+   
+      Data0 = Data[complete.cases(Data),]
+      
+     Data0_SNP = Data0[,grep("^rs", colnames(Data0))]
+     Geno_h = data.frame(rep(0,nrow(Data0_SNP)))
+     for(j in 1:ncol(Data0_SNP)){
+      x = data.frame(str_split_fixed(Data0_SNP[,j], "/", 2))
+      x1 = paste(colnames(Data0_SNP)[j],1,sep = "_")
+      x2 = paste(colnames(Data0_SNP)[j],2,sep = "_")
+      colnames(x) = c(x1,x2)
+      Geno_h = cbind(Geno_h,x)
+     }
+   Data0_cov = Data0[,-1:-ncol(Data0_SNP)]
+   Geno_h =  Geno_h[,-1]
+   Geno_h0 = data.frame(Geno_h, Data0_cov)
+   SNPnames_h = colnames(Geno_h)
+   
+     
+ Geno_d.C <- setupGeno(Geno_h)
+ Dat <- data.frame(Geno_d.C , Data0_cov)
+ 
+  res_c1 = haplo.glm(response ~ Geno_d.C * var, data= Dat,
+ allele.lev=attributes(Geno_d.C)$unique.alleles, family = "binomial")
+  
+   res_c_s = data.frame(summary(res_c1), number= rep(i,nrow(data.frame(summary(res_c1)))))
+  res_total = rbind(res_total,res_c_s)
+      }
+  else {
+   print(i) }}
+       
+     res_total_adj = data.frame(res_total, Adj = p.adjust(res_total$coeficients.p, method = "BH"))  
+     m = which(res_total_adj$Adj < 0.05)
+     res_total_adj[m,]
+      142 157 158 159 206
+       m1 = res_total_adj[m,]
+     m2 = grep("*.:" , rownames(m1))
+     m3 = m1[m2,]
+     m4 = unique(m3$number)
+  
+  summary(res_c1)
+    
+  
+  res res_total_adj$number == t)
+  
+  OXO:
+    
+    142 : Geno_d.C.rare:var -391.24970536 4.169950e-13 -9.382600e+14 0.0000000
+
+    
+   Geno_d.C.5:var20	-1.082784e+00	9.739281e-11	-1.111770e+10	0.000000e+00	158	0.000000e+00
+       Geno_d.C.7:var22	-4.452336e+00	6.800711e-01	-6.546868e+00	5.875633e-11	158	4.107553e-10
+       Geno_d.C.12:var9	-7.545184e-01	1.330437e-11	-5.671208e+10	0.000000e+00	158	0.000000e+00
+```
+```{r}
+i = 1
+ SNP = list_genes[[i]]$refsnp_id
+       
+        d = data.frame(list_genes[[i]]$ensembl_gene_name[1])
+       d1 = as.character(d[1,])
+       res_genes[i,1] = d1
+       res_genes[i,2] = str_c(SNP, collapse = "/")
+
+      SNP_h = data[,SNP]
+      Data = data.frame(SNP_h, response = response, var =  var, confusion_var)
+      
+   
+      Data0 = Data[complete.cases(Data),]
+      
+     Data0_SNP = Data0[,grep("^rs", colnames(Data0))]
+     Geno_h = data.frame(rep(0,nrow(Data0_SNP)))
+     for(j in 1:ncol(Data0_SNP)){
+      x = data.frame(str_split_fixed(Data0_SNP[,j], "/", 2))
+      x1 = paste(colnames(Data0_SNP)[j],1,sep = "_")
+      x2 = paste(colnames(Data0_SNP)[j],2,sep = "_")
+      colnames(x) = c(x1,x2)
+      Geno_h = cbind(Geno_h,x)
+     }
+   Data0_cov = Data0[,-1:-ncol(Data0_SNP)]
+   Geno_h =  Geno_h[,-1]
+   Geno_h0 = data.frame(Geno_h, Data0_cov)
+   SNPnames_h = colnames(Geno_h)
+   
+     
+ Geno_d.C <- setupGeno(Geno_h)
+ Dat <- data.frame(Geno_d.C , Data0_cov)
+ 
+  res_c1 = haplo.glm(response ~ Geno_d.C * var, data= Dat,
+ allele.lev=attributes(Geno_d.C)$unique.alleles, family = "binomial")
+  
+  data.frame(res_c1)
+  
+  
+  x = data.frame(res_c1$haplo.unique, Freq.haplo = res_c1$haplo.freq)
+  print(xtable(x, digits = rep(3, ncol(x) + 1)), include.rownames= FALSE)
+
+```
+
+
+```{r}
+for ( i in 40:50){
+    print(res_c1[[i]])
+  }
+  
+  
+  
+  res_c_s = data.frame(summary(res_c1), number= rep(i,nrow(data.frame(summary(res_c1)))))
+  res_total = rbind(res_total,res_c_s)
+      }
+  else {
+   print(i) }}
+       
+     res_total_adj = data.frame(res_total, Adj = p.adjust(res_total$coeficients.p, method = "BH"))  
+     m = which(res_total_adj$Adj < 0.05)
+     res_total_adj[m,]
+      142 157 158 159 206
+       
+       save(res_total_adj, file = "~/Nextcloud/RebecaMeleroTesis/Hortega/data/res_total_adj_gssh.rda")
+       save(res_genes, file = "~/Nextcloud/RebecaMeleroTesis/Hortega/data/res_genes_gssh_1.rda")
+       
+      
+        
+       MDA
+       (Intercept)91	-2.369585e+00	2.464716e-01	-9.614027e+00	0.000000e+00	142	0.000000e+00
+Geno_d.C.rare68	-2.149935e+01	6.035794e-12	-3.561975e+12	0.000000e+00	142	0.000000e+00
+Geno_d.C.rare:var68	-1.064331e-01	1.394371e-11	-7.633054e+09	0.000000e+00	142	0.000000e+00
+
+
+loc-1 loc-2 loc-3
+1 "A"   "A"   "C"  
+2 "A"   "A"   "T"  
+3 "A"   "G"   "C"  
+4 "A"   "G"   "T"  
+5 "G"   "A"   "C"  
+6 "G"   "A"   "T"  
+7 "G"   "G"   "C"  
+8 "G"   "G"   "T"  
+
+       (Intercept)103	-2.821974e+00	5.434831e-01	-5.192385e+00	2.076171e-07	157	1.374144e-06
+Geno_d.C.18:var4	-1.484842e+01	1.698085e-01	-8.744219e+01	0.000000e+00	157	0.000000e+00
+      (Intercept)104	-2.355188e+00	5.248195e-01	-4.487615e+00	7.202479e-06	158	4.610767e-05
+Geno_d.C.522	-2.585329e+02	8.238390e-10	-3.138149e+11	0.000000e+00	158	0.000000e+00
+Geno_d.C.1214	6.850844e+00	2.190102e+00	3.128094e+00	1.759438e-03	158	1.094917e-02
+Geno_d.C.355	2.812466e+00	9.850974e-01	2.855013e+00	4.303501e-03	158	2.656944e-02
+Geno_d.C.12:var9	-2.533546e+01	6.038141e-01	-4.195905e+01	0.000000e+00	158	0.000000e+00
+Geno_d.C.28:var1	7.648214e+01	1.075574e-10	7.110823e+11	0.000000e+00	158	0.000000e+00
+Geno_d.C.35:var4	-8.641143e+00	3.420313e-01	-2.526419e+01	0.000000e+00	158	0.000000e+00
+(Intercept)105	-2.479589e+00	2.303397e-01	-1.076492e+01	0.000000e+00	159	0.000000e+00
+Geno_d.C.rare76	1.402446e+01	1.145918e+00	1.223862e+01	0.000000e+00	159	0.000000e+00
+
+summary(res_c1)
+```
+
+```{r}
+load("~/Nextcloud/RebecaMeleroTesis/Hortega/data/res_genes_oxo.rda")
+res_genes[,4] = p.adjust(res_genes$p.value_H,method = "BH")
+res_genes[,6] = p.adjust(res_genes$p.value_c,method = "BH")
+res_genes[,8] = p.adjust(res_genes$p.value_v,method = "BH")
+colnames(res_genes) = c(colnames(res_genes)[-8], "Adj.p.value_v")
+
+which(res_genes$p.value_v < 0.05)
+list_genes[[158]]
+
+View(res_genes)
+```
+
+
+```{r}
+load("~/Nextcloud/RebecaMeleroTesis/Hortega/data/res_total_adj_oxo.rda")
+res_total_adj = data.frame(res_total, Adj = p.adjust(res_total_adj$coeficients.p, method = "BH"))  
+     m = which(res_total_adj$Adj < 0.05)
+     m1 = res_total_adj[m,]
+     m2 = grep("*.:" , rownames(m1))
+     m3 = m1[m2,]
+     m4 = unique(m3$number)
+    
+    157 158 159 206
+```
+
+```{r}
+g =  list()
+ count = 1
+ count_1 = 33
+ for(i in 1:(nrow(m3)/33)){
+   g1 = Tabla_final_4[count:count_1,]
+   g[[i]] = g1
+   count = count + 33
+   count_1 = count_1 + 33
+ }
+   for(i in 21:30){
+    print(xtable(g[[i]]), include.rownames= FALSE)
+   }
+ 
+ r = order(m3$Adj)
+ m5 = m3[r,]
+ 
+ d1 =Tabla_final_4[891:nrow(Tabla_final_4),]
+ print(xtable(m3[1:50,]), include.rownames= FALSE)
+
+```
+
+
+
+```{r}
+ library(haplo.stats)
+library(MASS)
+```
+
+```{r}
+response = hortega_s$diabetes.mellitus.type2
+var = hortega_s$os.gssg.gsh.tot.glutiatione.umol.mg.prot
+confusion_var = data.frame(BMI = hortega_s$bmi, Age = hortega_s$age, Gender = hortega_s$gender)
+ #oxo <- hortega_s$os.8oxodg.umol.by.mg.prot[-p]
+ #mda <- hortega_s$os.mda.umol.by.mg.prot[-p]
+ #gssh_1 <- hortega_s$os.gssg.gsh.ratio[-p]
+ #gssh_2 <- hortega_s$os.gssg.gsh.tot.glutiatione.umol.mg.prot[-p]
+
+ # Mas de una categoria:
+    #d_1 = which(sapply(Data,function(y){
+    #y = factor(y)
+    #nlevels(y) - is.element("0/0",levels(y))*1}) < 2)
+      
+
+ Haplotype_EM =  function(genes, list_genes, response, var, confusion_var){}
+ res_genes = data.frame(matrix(ncol = 8, nrow = length(genes)))
+ d2 = c("Name", "SNPs","p.value_H", "Adj.p.value_H", "p.value_c","Adj.p.value_c",
+        "p.value_v","Adj.p.value_c")
+       colnames(res_genes) = d2
+       for ( i in 1:length(genes)){
+         
+         i= 10
+       SNP = list_genes[[i]]$refsnp_id
+       
+      if( length(SNP) >= 2 & length(SNP) < 5){ 
+         SNP_LD = Haplotype_LD(i = i, Haplotype = Haplotype, 
+                               list_genes = list_genes, Info_snp = Info_snp)
+         res_genes_1 = data.frame(matrix(ncol = 8, nrow = length(SNP_LD)))
+         d2 = c("Name", "SNPs","p.value_H", "Adj.p.value_H", "p.value_c",
+                "Adj.p.value_c","p.value_v","Adj.p.value_c")
+         colnames(res_genes_1) = d2
+           
+         for(t in 1:length(SNP_LD)){
+           t = 1
+         SNP = SNP_LD[[t]]$refsnp_id
+         
+     d = data.frame(SNP_LD[[t]]$ensembl_gene_name[1])
+       d1 = as.character(d[1,])
+       res_genes_1[i,1] = d1
+       res_genes_1[i,2] = str_c(SNP, collapse = "/")
+
+      SNP_h = data[,SNP]
+      Data = data.frame(SNP_h, response = response, var =  var, confusion_var)
+      
+   
+      Data0 = Data[complete.cases(Data),]
+      
+     Data0_SNP = Data0[,grep("^rs", colnames(Data0))]
+     Geno_h = data.frame(rep(0,nrow(Data0_SNP)))
+     for(j in 1:ncol(Data0_SNP)){
+      x = data.frame(str_split_fixed(Data0_SNP[,j], "/", 2))
+      x1 = paste(colnames(Data0_SNP)[j],1,sep = "_")
+      x2 = paste(colnames(Data0_SNP)[j],2,sep = "_")
+      colnames(x) = c(x1,x2)
+      Geno_h = cbind(Geno_h,x)
+     }
+   Data0_cov = Data0[,-1:-ncol(Data0_SNP)]
+   Geno_h =  Geno_h[,-1]
+   Geno_h0 = data.frame(Geno_h, Data0_cov)
+   SNPnames_h = colnames(Geno_h)
+   
+     
+ Geno_d.C <- setupGeno(Geno_h)
+ Dat <- data.frame(Geno_d.C , Data0_cov)
+
+ #Asociacion haplotipo con la variable respuesta
+ 
+  res_null = glm(response ~ 1, data = Dat, family = "binomial")
+
+  res0= haplo.glm(response ~ Geno_d.C + var , data= Dat,
+ allele.lev=attributes(Geno_d.C)$unique.alleles, family = "binomial")
+  
+ z1 =  1 - pchisq(res_null$deviance - res0$deviance, length(names(res0$coefficients))) 
+ res_genes_1[t,3] = z1
+ 
+ #Ajuste por covariables de confusion
+ 
+  res0_c= glm(response ~ var + BMI + Age + Gender, data = Dat, family = "binomial")
+  
+  res_c = haplo.glm(response ~ Geno_d.C * (var + BMI + Age + Gender) , data= Dat,
+ allele.lev=attributes(Geno_d.C)$unique.alleles, family = "binomial")
+  
+  
+  m = data.frame(summary(res_c))
+  View(m)
+  
+ s1 =  1 - pchisq(res0_c$deviance - res_c$deviance, length(names(res_c$coefficients))) 
+ res_genes_1[t,5] = s1
+  
+ #Asociación con la covariable:
+ 
+ res_c = haplo.glm(response ~ Geno_d.C  + BMI + Age + Gender , data= Dat,
+ allele.lev=attributes(Geno_d.C)$unique.alleles, family = "binomial")
+ 
+ res_c1 = haplo.glm(response ~ Geno_d.C + var + BMI + Age + Gender , data= Dat,
+ allele.lev=attributes(Geno_d.C)$unique.alleles, family = "binomial")
+ 
+ f1 = anova(res_c,res_c1)
+ res_genes_1[t,7] = s1
+  }
+         
+  SNP_LD[[2]]
+```
+
+
+```{r}
+#res = Haplotype_EM_1 = (i = t, SNP = SNP, list_genes = SNP_LD, data = data, response = response, var = var,        
+                                    #confusion_var = confusion_var, res_genes = res_genes_1)
+         }
+        }
+       
+       if( length(SNP) >= 2){
+      
+ } 
+       else {
+   res_genes[i,1] = d1
+   res_genes[i,2] = SNP
+   res_genes[i,3] = NA
+   res_genes[i,4] = NA
+   res_genes[i,5] = NA
+   res_genes[i,6] = NA
+   res_genes[i,7] = NA
+   res_genes[i,7] = NA
+   res_genes[i,8] = NA
+ }
+}
+```
+
+
+
+```{r}
+predict(fit)
+  coef(fit)
+  ggpredict(res0_1,terms=c(oxo, Geno_d.C), ci.lvl = NA)
+  
+  df = data.frame(Dat$response, Dat$var, Dat$Geno_d.C)
+  View(df)
+  names(df) = c(response,var,"Geno_d.C")
+  
+  dir.create(path)
+  
+  filename = paste0(probabilidad_enfermedad,vars,SNP,"bi", ".png")
+  p = ggpredict(fit,terms=c(var,"Geno_d.C"), ci.lvl = NA)
+  ggsave(filename,p)
+```
+
+
+   
+ 
+   
+
+ 
