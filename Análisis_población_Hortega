@@ -1,1 +1,3143 @@
+title: "main"
+author: "Rebeca"
+date: "15/10/2021"
+output: html_document
+---
 
+# Some previous stuff
+
+```{r}
+doBasics = TRUE
+doAll = FALSE
+doNot = FALSE
+```
+
+
+
+## Paquetes  
+
+```{r,eval=doBasics}
+
+pacman::p_load(readODS,readr,SNPassoc,ggplot2,gdata,survival,Matrix,snpStats,
+               mgcv,spatial,LDheatmap,combinat,genetics,survival,PredictABEL,
+               biomaRt,dplyr,tidyr,purrr,stringr,effects,ggeffects,knitr,xtable,
+               MASS, DescTools,expss, lattice, ggrepel,locfit, ensembldb)
+```
+
+
+
+##Function
+
+```{r}
+source("fun-RM1.R")
+```
+
+
+# Data
+
+## Cargando los datos de los SNPs y los datos clinicos
+
+
+```{r, eval=doNot}
+SNP <- read.csv("../data/DB_EHortega_SNPs.csv", header=TRUE, sep=",")
+clinica <- read.csv("../data/Clinical_hortega_full original DB_141119 correcta-formato americano.csv", header=TRUE, sep=",")
+nombres <- read.csv("~/Documents/nombres_genes.csv", header=TRUE, sep=",")
+
+```
+
+```{r, eval=doNot}
+SNP <- read.csv("../data/DB_EHortega_SNPs.csv", header=TRUE, sep=",")
+clinica <- read.csv("../data/Clinical_hortega_full original DB_141119 correcta-formato americano.csv", header=TRUE, sep=",",dec=".")
+```
+
+```{r}
+#Variables clínicas que están siendo tratadas no se consideran. 
+
+for (i in 1:nrow(hortega)){
+if (clinica$tx.hypercholesterolemia[i] == "YES"){
+  clinica$c
+  hol.hdl.no.basal.mg.dl[i] <- NA
+  clinica$triglycerides.log[i] <- NA
+  clinica$chol.ldl.no.basal.mg.dl[i] <- NA
+  clinica$chol.tg.no.basal.mg.dl[i] <- NA
+}
+  if(clinica$tx.diabetes.insuline[i] == "YES") {
+    clinica$glucose.mg.dl[i]<- NA
+  }
+  
+  if(clinica$tx.hypertension[i] == "YES"){
+    clinica$pulse.pressure.mmHg[i] <- NA
+  }
+}
+
+
+ # Escoger los elementos con igual o mas de 2 niveles:
+
+d =  which(sapply(clinica,function(y){
+    y = factor(y)
+    nlevels(y) - is.element("0 0",levels(y))*1}) >= 2)
+
+clinica = clinica[,d]
+```
+
+
+```{r, eval=doNot}
+clinica$Overweight = (clinica$Overweight == "YES")*1
+clinica$Obesity = (clinica$Obesity == "YES")*1
+clinica$diabetes.mellitus.type2 = (clinica$diabetes.mellitus.type2 == "YES")*1
+clinica$hypertension.yes.no = (clinica$hypertension.yes.no == "YES")*1
+clinica$chol.hypertriglyceridemia = (clinica$chol.hypertriglyceridemia == "YES")*1
+clinica$gender = factor(clinica$gender)
+clinica$age = as.numeric(clinica$age)
+clinica$weight.kg = as.numeric(clinica$weight.kg)
+clinica$waist.cm = as.numeric(clinica$waist.cm)
+clinica$hip.cm = as.numeric(clinica$hip.cm)
+clinica$waist.hip.type = factor(clinica$waist.hip.type)
+clinica$central.obesity = (clinica$central.obesity == "YES")*1
+clinica$sbp = as.numeric(clinica$sbp)
+clinica$dbp = as.numeric(clinica$dbp)
+clinica$pulse.pressure.mmHg = as.numeric(clinica$pulse.pressure.mmHg)
+clinica$mbp = as.numeric(clinica$mbp)
+clinica$hypertension.control.status = factor(clinica$hypertension.control.status)
+clinica$htn = (clinica$htn =="YES")*1
+clinica$social.status = factor(clinica$social.status, ordered = TRUE, 
+                               levels = c("I","II","III","IVa","IVb","V","VI"))
+clinica$level.schooling = factor(clinica$level.schooling)
+clinica$residence.place = factor(clinica$residence.place)
+clinica$smoking.status = factor(clinica$smoking.status)
+clinica$cigarette.packages.year = as.numeric(clinica$cigarette.packages.year)
+clinica$type.wine = factor(clinica$type.wine)
+clinica$alcohol.g.day.mode.abbreviated = 
+  as.numeric(clinica$alcohol.g.day.mode.abbreviated)
+clinica$alcohol.g.day.mode.complex = as.numeric(clinica$alcohol.g.day.mode.complex)
+clinica$prevention = factor(clinica$prevention)
+clinica$meters.recall = as.numeric(clinica$meters.recall)
+clinica$chol.hyp.ldl.YES.NO = ( clinica$chol.hyp.ldl.YES.NO == "YES")*1
+clinica$microalbuminuria.yes.no = (clinica$microalbuminuria.yes.no == "YES")*1
+clinica$microalbuminuria.category = factor(clinica$microalbuminuria.category)
+#Convertimos a variable categorica ordinal:
+clinica$os.8oxodg.umol.by.mg.prot = as.numeric(clinica$os.8oxodg.umol.by.mg.prot)
+clinica$os.mda.umol.by.mg.prot = as.numeric(clinica$os.mda.umol.by.mg.prot)
+clinica$os.gssg.umol.by.mg.prot = as.numeric(clinica$os.gssg.umol.by.mg.prot)
+clinica$os.gsh.umol.by.mg.prot = as.numeric(clinica$os.gsh.umol.by.mg.prot)
+clinica$os.gssg.gsh.ratio = as.numeric(clinica$os.gssg.gsh.ratio)
+clinica$os.gssg.gsh.tot.glutiatione.umol.mg.prot = 
+  as.numeric(clinica$os.gssg.gsh.tot.glutiatione.umol.mg.prot)
+clinica$creatinine.urine.mg.24h = as.numeric(clinica$creatinine.urine.mg.24h)
+clinica$microalbumina.mg.dl = as.numeric(clinica$microalbumina.mg.dl)
+clinica$albumin.urine.by.hplc.mg.24h = as.numeric(clinica$albumin.urine.by.hplc.mg.24h)
+clinica$central.obesity = (clinica$central.obesity == "YES")*1
+clinica$sbp = as.numeric(clinica$sbp)
+clinica$dbp = as.numeric(clinica$dbp)
+clinica$pulse.pressure.mmHg = as.numeric(clinica$pulse.pressure.mmHg)
+clinica$mbp = as.numeric(clinica$mbp)
+clinica$hypertension.control.status = factor(clinica$hypertension.control.status)
+clinica$htn = (clinica$htn =="YES")*1
+clinica$social.status = factor(clinica$social.status)
+clinica$level.schooling = factor(clinica$level.schooling)
+clinica$residence.place = factor(clinica$residence.place)
+clinica$smoking.status = factor(clinica$smoking.status)
+clinica$cigarette.packages.year = as.numeric(clinica$cigarette.packages.year)
+clinica$type.wine = factor(clinica$type.wine)
+clinica$alcohol.g.day.mode.abbreviated = as.numeric(clinica$alcohol.g.day.mode.abbreviated)
+clinica$alcohol.g.day.mode.complex = as.numeric(clinica$alcohol.g.day.mode.complex)
+clinica$prevention = factor(clinica$prevention)
+clinica$meters.recall = as.numeric(clinica$meters.recall)
+clinica$chol.hyp.ldl.YES.NO = ( clinica$chol.hyp.ldl.YES.NO == "YES")*1
+clinica$microalbuminuria.yes.no = (clinica$microalbuminuria.yes.no == "YES")*1
+clinica$microalbuminuria.category = factor(clinica$microalbuminuria.category)
+#Convertimos a variable categorica ordina:
+clinica$metabolic.sindrome.components = factor(clinica$metabolic.sindrome.components, ordered = TRUE, levels = c("0","1", "2", "3", "4"))
+clinica$metabolic.sindrome.components <- ordered(clinica$metabolic.sindrome.components)
+clinica$os.8oxodg.umol.by.mg.prot = as.numeric(clinica$os.8oxodg.umol.by.mg.prot)
+clinica$os.mda.umol.by.mg.prot = as.numeric(clinica$os.mda.umol.by.mg.prot)
+clinica$os.gssg.umol.by.mg.prot = as.numeric(clinica$os.gssg.umol.by.mg.prot)
+clinica$os.gsh.umol.by.mg.prot = as.numeric(clinica$os.gsh.umol.by.mg.prot)
+clinica$os.gssg.gsh.ratio = as.numeric(clinica$os.gssg.gsh.ratio)
+clinica$os.gssg.gsh.tot.glutiatione.umol.mg.prot = 
+  as.numeric(clinica$os.gssg.gsh.tot.glutiatione.umol.mg.prot)
+clinica$creatinine.urine.mg.24h = as.numeric(clinica$creatinine.urine.mg.24h)
+clinica$microalbumina.mg.dl = as.numeric(clinica$microalbumina.mg.dl)
+clinica$cotinine.urine.mg.24h = as.numeric(clinica$cotinine.urine.mg.24h)
+clinica$phosphaturia.urine.mg.24h = as.numeric(clinica$phosphaturia.urine.mg.24h)
+clinica$sodiol.urine.mg.24h = as.numeric(clinica$sodiol.urine.mg.24h)
+clinica$bmd = as.numeric(clinica$bmd)
+clinica$fasting.hours = factor(clinica$fasting.hours)
+clinica$chol.total.no.basal.mg.dl = as.numeric(clinica$chol.total.no.basal.mg.dl)
+clinica$sodium.plasma.mg.dL = as.numeric(clinica$sodium.plasma.mg.dL)
+clinica$creatinine.plasma.mg.dl = as.numeric(clinica$creatinine.plasma.mg.dl)
+clinica$glucose.mg.dl = as.numeric(clinica$glucose.mg.dl)
+#Tasa de filtracion glomerular
+clinica$egfr = as.numeric(clinica$egfr)
+clinica$egfr.cat = as.numeric(clinica$egfr.cat)
+clinica$egfr.cg = as.numeric(clinica$egfr.cg)
+clinica$tumor = (clinica$tumor == "YES")*1
+clinica$tipo.tumor = factor(clinica$tipo.tumor)
+clinica$kcal.intake.kcal.day = as.numeric(clinica$kcal.intake.kcal.day)
+clinica$kjul.intake.kjul.day = as.numeric(clinica$kjul.intake.kjul.day)
+clinica$chol.intake.mg.day = as.numeric(clinica$chol.intake.mg.day)
+clinica$fibre.intake.g.day = as.numeric(clinica$fibre.intake.g.day)
+clinica$proteins.intake.g.day = as.numeric(clinica$proteins.intake.g.day)
+clinica$carbohydrate.intake.g.day = as.numeric(clinica$carbohydrate.intake.g.day)
+clinica$fats.intake = as.numeric(clinica$fats.intake) 
+clinica$fa.sat.g.day = as.numeric(clinica$fa.sat.g.day)
+clinica$fa.unsat.mono.g.day = as.numeric(clinica$fa.unsat.mono.g.day)
+clinica$fa.unsat.poli.g.day = as.numeric(clinica$fa.unsat.poli.g.day)
+clinica$folic.acid.intake.ug.day = as.numeric(clinica$folic.acid.intake.ug.day)
+clinica$vitamine.a.ug.day = as.numeric(clinica$vitamine.a.ug.day)
+clinica$vitamine.b1.mg.day = as.numeric(clinica$vitamine.b1.mg.day)
+clinica$vitamine.b12.ug.day = as.numeric(clinica$vitamine.b12.ug.day)
+clinica$vitamine.b2.mg.day = as.numeric(clinica$vitamine.b2.mg.day)
+clinica$vitamine.b3.mg.day = as.numeric(clinica$vitamine.b3.mg.day)
+clinica$vitamine.b6.mg.day = as.numeric(clinica$vitamine.b6.mg.day)
+clinica$vitamine.c.mg.day = as.numeric(clinica$vitamine.c.mg.day)
+clinica$vitamine.d.ug.day = as.numeric(clinica$vitamine.d.ug.day)
+clinica$vitamine.e.mg.day = as.numeric(clinica$vitamine.e.mg.day)
+clinica$sodium.na.intake.mg.day = as.numeric(clinica$sodium.na.intake.mg.day)
+clinica$potasium.k.intake.mg.day = as.numeric(clinica$potasium.k.intake.mg.day)
+clinica$calcium.ca.intake.mg.day = as.numeric(clinica$calcium.ca.intake.mg.day)
+clinica$phosphorus.p.intake.mg.day = as.numeric(clinica$phosphorus.p.intake.mg.day)
+clinica$magnesium.mg.intake.mg.day = as.numeric(clinica$magnesium.mg.intake.mg.day)
+clinica$iron.fe.intake.mg.day = as.numeric(clinica$iron.fe.intake.mg.day)
+clinica$zinc.zn.intake.mg.day = as.numeric(clinica$zinc.zn.intake.mg.day)
+clinica$iodine.i.intake.mg.day = as.numeric(clinica$iodine.i.intake.mg.day)
+clinica$alumicre = as.numeric(clinica$alumicre)
+clinica$algrmin = as.numeric(clinica$algrmin)
+clinica$alumil = as.numeric(clinica$alumil)
+clinica$antimol = as.numeric(clinica$antimol)
+clinica$arsencre = as.numeric(clinica$arsencre)
+clinica$arsenl = as.numeric(clinica$arsenl)
+clinica$cadmcre = as.numeric(clinica$cadmcre)
+clinica$cadmiol = as.numeric(clinica$cadmiol)
+clinica$cadmmin = as.numeric(clinica$cadmmin)
+clinica$cadmsu = as.numeric(clinica$cadmsu)
+clinica$cromocre = as.numeric(clinica$cromocre)
+clinica$cromin = as.numeric(clinica$cromin)
+clinica$cromol = as.numeric(clinica$cromol)
+clinica$cobrel = as.numeric(clinica$cobrel)
+clinica$cobaltol = as.numeric(clinica$cobaltol)
+clinica$hierrol = as.numeric(clinica$hierrol)
+clinica$magnel = as.numeric(clinica$magnel)
+clinica$bariol = as.numeric(clinica$bariol)
+clinica$mangacre = as.numeric(clinica$mangacre)
+clinica$hiemin = as.numeric(clinica$hiemin)
+clinica$manganel = as.numeric(clinica$manganel)
+clinica$niquelcr = as.numeric(clinica$niquelcr)
+clinica$niquell = as.numeric(clinica$niquell)
+clinica$nitratos = as.numeric(clinica$nitratos)
+clinica$nitranit = as.numeric(clinica$nitranit)
+clinica$nitritos = as.numeric(clinica$nitritos)
+clinica$plogrmin = as.numeric(clinica$plogrmin)
+clinica$plomin = as.numeric(clinica$plomin)
+clinica$plommin = as.numeric(clinica$plommin)
+clinica$plomocre = as.numeric(clinica$plomocre)
+clinica$plomol = as.numeric(clinica$plomol)
+clinica$plomsu = as.numeric(clinica$plomsu)
+clinica$ploorcua = as.numeric(clinica$ploorcua)
+clinica$aluorcua = as.numeric(clinica$aluorcua)
+clinica$seleniol = as.numeric(clinica$seleniol)
+clinica$sodiol = as.numeric(clinica$sodiol)
+clinica$zinccrea = as.numeric(clinica$zinccrea)
+clinica$antorcua = as.numeric(clinica$antorcua)
+clinica$anticrea = as.numeric(clinica$anticrea)
+clinica$ratio.carne.pescado.g.mes = as.numeric(clinica$ratio.carne.pescado.g.mes)
+
+View(clinica)
+
+for (i in colnames(clinica[123:126]))
+  clinica[,i] = as.numeric( clinica[,i])
+
+for (i in colnames(clinica[127:139]))
+clinica[,i] = factor(clinica[,i], ordered = TRUE, levels = c("1 cuartil", "2 cuartil", "3 cuartil", "4 cuartil"))
+  
+for (i in colnames(clinica[140:143]))
+  clinica[,i] = as.numeric( clinica[,i])
+
+for (i in colnames(clinica[144:146]))
+clinica[,i] = factor(clinica[,i], ordered = TRUE, levels = c("1 cuartil", "2 cuartil", "3 cuartil", "4 cuartil"))
+
+for (i in colnames(clinica[147:243]))
+  clinica[,i] = as.numeric( clinica[,i])
+
+for (i in colnames(clinica[244:246]))
+clinica[,i] = factor( clinica[,i])
+
+for (i in colnames(clinica[250:259]))
+  clinica[,i] = as.numeric( clinica[,i])
+
+clinica$organ.damage = (clinica$organ.damage == "YES")*1
+
+clinica$medical.drugs.day = factor(clinica$medical.drugs.day, ordered = TRUE, levels = c("0","1", "2", "3", "4","5","6","7"))
+
+for (i in colnames(clinica[263:309]))
+  clinica[,i] = as.numeric( clinica[,i])
+
+clinica$BMI = as.numeric(clinica$BMI)
+
+clinica = clinica[,-1:-3]
+clinica = clinica[,-14]
+clinica = clinica[,-30:-32]
+clinica = clinica[,-52]
+clinica = clinica[,-239]
+clinica = clinica[,-291:-307]
+
+View(clinica)
+
+clinica_1 = clinica
+
+clinica = cbind(clinica[,1:3],clinica_1)
+save(clinica, file = "~/Desktop/Rebeca/clinica.rda")
+```
+
+
+```{r}
+snp_stats = data.frame(id = hortega_s$id.vlc, diabetes = hortega_s$diabetes.mellitus.type2, mda = hortega_s$os.mda.umol.by.mg.prot, hortega_s[,321:1308], gender = hortega_s$gender, age =  hortega_s$age, bmi = hortega_s$bmi)
+write.table(snp_stats, file = "~/Desktop/snp_stats_2.csv", sep = ";", 
+            row.names = FALSE, col.names = TRUE)
+hortega_s[,321:1308])
+```
+
+#We make a unique `data.frame`. 
+
+```{r, eval=doNot}
+View(clinica)
+table(SNP$ID_VLC1 == clinica$id.vlc)
+orden = match(SNP$ID_VLC1,clinica$id.vlc)
+table(SNP$ID_VLC1 == clinica$id.vlc[orden])
+hortega = data.frame(clinica[orden,], SNP)
+save(clinica, file = "~/Desktop/Rebeca/hortega.rda")
+Info_snp
+```
+
+
+```{r,eval=doNot}
+mart_snp <- useMart("ENSEMBL_MART_SNP", dataset = "hsapiens_snp")
+dataset()
+snps <- c("rs5191","rs11032709","rs12752700","rs11121819","rs2066714","rs2853579","rs11091046","rs1064498","rs9344")
+snps <- colnames(hortega_s[,321:1308])
+snpInfo <- getBM(c("refsnp_id","ensembl_gene_name","chr_name","chrom_start","allele", "minor_allele_freq","consequence_type_tv", "clinical_significance"),
+filters = c("snp_filter"), values = snps, mart = mart_snp)
+
+
+Info_snp = snpInfo[!duplicated(snpInfo$refsnp_id),]
+save(Info_snp, file = "~/Desktop/Rebeca/Info_snp.rda")
+
+Info_snp_1 = Info_snp[!duplicated(Info_snp$ensembl_gene_name),]
+
+genes = c("AGTR2","AGTRAP"," AGTRAP","ABCA1","ABCA1","AGTR2","RAC2","CCND1")
+z = data.frame(Info_snp$refsnp_id,genes, Info_snp$ensembl_gene_name, Info_snp$chr_name, Info_snp$chrom_start,Info_snp$chrom_end, Info_snp$consequence_type_tv, Info_snp$minor_allele_freq, Info_snp$clinical_significance,Info_snp$phenotype_description)
+colnames(z) = colnames(Tabla_final)
+
+mart_gene <- useMart("ENSEMBL_MART_ENSEMBL", dataset = "hsapiens_gene_ensembl")
+Genes = Info_snp$ensembl_gene_name
+snpInfo_genes <- getBM(attributes = c("ensembl_gene_id", "chromosome_name", "external_gene_name", "name_1006", "namespace_1003","name"),
+filters = c("ensembl_gene_id"), values = Genes, mart = mart_gene)
+Info_genes = snpInfo_genes[!duplicated(snpInfo_genes$ensembl_gene_id),]
+Info_genes_1
+
+View(merge(Info_snp$ensembl_gene_name,Info_genes$ensembl_gene_id))
+
+t = match(Info_snp$ensembl_gene_name,Info_genes$ensembl_gene_id)
+z = Info_genes[t,]
+
+t1 = match(nombres$refsnp_id,Info_snp$refsnp_id)
+z1 =  nombres[t1,]
+
+x = listAttributes(mart_snp)
+grep("conse",x)
+colnames(nombres) <- c("refsnp_id", "external_gene_name")
+r = match(nombres$refsnp_id, Info_snp$refsnp_id)
+r1 = nombres[r,]
+which(r1$refsnp_id == "rs5046")
+
+
+r2 = match(s$`z$external_gene_name`, r1$external_gene_name)
+r3 = s[r2,]
+
+
+which(Info_snp$refsnp_id == "rs196904")
+```
+
+
+
+```{r}
+SNP = "rs196904"
+go_id = function(SNP,Info_snp,Info_genes){
+  y = which(Info_snp$refsnp_id == SNP)
+  y1 = Info_snp$ensembl_gene_name[y]
+  y2 = which(Info_genes$ensembl_gene_id == y1)
+  y3 = Info_genes$go_id [y2]
+  y4 = which(Info_genes$go_id == y3)
+  y5 = Info_genes[y4,]  
+  y6 = y5$ensembl_gene_id
+  y8 =c()
+  for (i in y6){
+    y7 = which(Info_snp$ensembl_gene_name == i) 
+    y8 = c(y8,y7)
+  }
+  y9 = Info_snp$refsnp_id[y8]
+  y9 = Info_snp[y8,]
+  GO_SNP = y9$refsnp_id
+}
+
+x = go_id(SNP = SNP,Info_snp = Info_snp ,Info_genes = Info_genes)
+
+x1 = which(Info_genes$go_id == "GO:0003677")
+
+Info_genes[x1,]
+```
+
+
+
+```{r}
+s = cbind(Info_snp, z$external_gene_name)
+
+#Que el SNP este en el data.frame de nombres:
+
+y = merge(nombres,Info_snp)
+
+y1 = match(y$refsnp_id, Info_snp$refsnp_id)
+dim(y4)
+y2 = Info_snp[-y1,]
+
+y6 = match(y2$refsnp_id, s$refsnp_id)
+s[y6,]
+
+y7 = s[y6,]
+y8 = data.frame(y7$refsnp_id, y7$`z$external_gene_name`, y7$ensembl_gene_name, y7$chr_name, y7$chrom_start, y7$chrom_end, y7$consequence_type_tv, y7$minor_allele_freq, y7$clinical_significance, y7$phenotype_description)
+colnames(y8) =  colnames(y)
+
+Tabla_final = rbind(y,y8)
+
+y9 = match(SNPs_ordenadas, Tabla_final$refsnp_id)
+
+Tabla_final_1 =  Tabla_final[y9,]
+Tabla_final_1 = Tabla_final_1[-891:-899,] 
+Tabla_final_1 = rbind(z, Tabla_final_1)
+
+Tabla_final_1$chr_name[Tabla_final_1$chr_name == "X"] <- 23
+
+t = order(as.numeric(Tabla_final_1$chrom_start))
+Tabla_final_2 = Tabla_final_1[t,]
+
+t1 = order(as.numeric(Tabla_final_2$chr_name))
+Tabla_final_3 = Tabla_final_2[t1,]
+
+xtable(Tabla_final_3)
+
+Tabla_final_3 = cbind(refsnp_id = Tabla_final_3$refsnp_id,Tabla_final_3)
+
+  
+  save(Tabla_final_3, file = "~/Desktop/Tabla_final.rda")
+  load("~/Desktop/Tabla_final.rda")
+  
+ x = match(Tabla_final_3$refsnp_id, Info_snp$refsnp_id)
+```
+
+
+```{r}
+alelos = Info_snp[x,]$allele
+Tabla_final_4 = data.frame(Tabla_final_3$refsnp_id, Tabla_final_3$external_gene_name, Tabla_final_3$chr_name, position = Tabla_final_3$chrom_start, alelles = alelos, Tabla_final_3$minor_allele_freq, consequence = Tabla_final_3$consequence_type_tv, Tabla_final_3$clinical_significance)
+colnames(Tabla_final_4) = c("SNP name", "Gene name","Chromosome" ,"Position","Alelles","MAF","Consequence","Clinical significance")
+```
+
+
+```{r}
+g =  list()
+ count = 1
+ count_1 = 33
+ for(i in 1:(nrow(Tabla_final_4)/33)){
+   g1 = Tabla_final_4[count:count_1,]
+   g[[i]] = g1
+   count = count + 33
+   count_1 = count_1 + 33
+ }
+   for(i in 21:30){
+    print(xtable(g[[i]]), include.rownames= FALSE)
+   }
+ 
+ d1 =Tabla_final_4[891:nrow(Tabla_final_4),]
+ print(xtable(d1), include.rownames= FALSE)
+
+```
+
+
+```{r}
+y4 = data.frame(Info_genes$ensembl_gene_id, Info_genes$external_gene_name)
+colnames(y4) = c("ensembl_gene_name","name_gene")
+y5 = match(y4$ensembl_gene_name, y2$ensembl_gene_name)
+y3 =  
+
+
+rbind(y,y3)
+
+colnames(z) = colnames(Tabla_final_1)
+
+
+for (i in 1:nrow(s)){
+  i= 4
+if ()
+if(is.na(s$`z$external_gene_name`[i])){
+  f = Info_snp$refsnp_id[i]
+  f1 = which(r1$external_gene_name == f)
+  s$`z$external_gene_name` <- r1$external_gene_name[f1]
+ }
+}
+
+```
+
+```{r,eval=doNot}
+save(snpInfo_genes, file = "~/Desktop/Rebeca/snpInfo_genes.rda")
+save(Info_genes, file = "~/Desktop/Rebeca/Info_genes_1.rda")
+
+
+colnames(Info_snp) = c("refsnp_id","ensembl_gene_id","clinical_significance","phenotype_description")
+
+
+d1 = merge(Info_snp, Info_genes)
+d2 = distinct(d1, d1$refsnp_id, .keep_all = TRUE)
+
+#XHD
+d3 = grep("XD", d2$external_gene_name)
+d4 = d2[d3,]
+d5 = cbind(d4$external_gene_name, d4$refsnp_id, d4$clinical_significance)
+SNP_XDH=  d4$refsnp_id
+xtable(d5,digits = c(0,5,5,5))
+
+#GSS
+d3 = grep("GSS", d2$external_gene_name)
+d4 = d2[d3,]
+d5 = cbind(d4$external_gene_name, d4$refsnp_id, d4$clinical_significance)
+SNP_GSS =  d4$refsnp_id
+xtable(d5,digits = c(0,5,5,5))
+
+#Catalytic:
+
+d3 = grep("catalytic activity", d2$name_1006)
+d4 = d2[d3,]
+d5 = cbind(d4$external_gene_name, d4$refsnp_id, d4$clinical_significance)
+SNP_catalytic =  d4$refsnp_id
+xtable(d5,digits = c(0,5,5,5))
+
+#oxidoreductase activity
+d3 = grep("oxidoreductase activity", d2$name_1006)
+d4 = d2[d3,]
+d5 = cbind(d4$external_gene_name, d4$refsnp_id, d4$clinical_significance)
+SNP_oxi =  d4$refsnp_id
+xtable(d5,digits = c(0,5,5,5))
+
+#flavin adenine dinucleotide binding
+d3 = grep("flavin adenine dinucleotide binding", d2$name_1006)
+d4 = d2[d3,]
+d5 = cbind(d4$external_gene_name, d4$refsnp_id, d4$clinical_significance)
+SNP_flav =  d4$refsnp_id
+xtable(d5,digits = c(0,5,5,5))
+
+#electron transfer activity
+
+d3 = grep("electron transfer activity", d2$name_1006)
+d4 = d2[d3,]
+d5 = cbind(d4$external_gene_name, d4$refsnp_id, d4$clinical_significance)
+SNP_elec =  d4$refsnp_id
+xtable(d5,digits = c(0,5,5,5))
+
+#protein-disulfide reductase activity
+
+d3 = grep("protein-disulfide reductase activity", d2$name_1006)
+d4 = d2[d3,]
+d5 = cbind(d4$external_gene_name, d4$refsnp_id, d4$clinical_significance)
+SNP_disulfide =  d4$refsnp_id
+xtable(d5,digits = c(0,5,5,5))
+
+#mitochondrial
+
+d3 = grep("mitochondrial", d2$name_1006)
+d4 = d2[d3,]
+d5 = cbind(d4$external_gene_name, d4$refsnp_id, d4$clinical_significance)
+SNP_mito =  d4$refsnp_id
+xtable(d5,digits = c(0,5,5,5))
+
+d3 = grep("ABCG5", d2$external_gene_name)
+d4 = d2[d3,]
+d5 = cbind(d4$external_gene_name, d4$refsnp_id, d4$clinical_significance)
+SNP_ABC =  d4$refsnp_id
+
+
+#GPXs, GCLM, GRs 
+
+d3 = grep("SLC35F1", d2$external_gene_name)
+d4 = d2[d3,]
+d5 = cbind(d4$external_gene_name, d4$refsnp_id, d4$clinical_significance)
+SNP_SLC35F1 = d4$refsnp_id
+xtable(d5,digits = c(0,5,5,5))
+
+#AGT, ACE, AT1
+
+d3 = grep("AT", d2$external_gene_name)
+d4 = d2[d3,]
+d5 = cbind(d4$external_gene_name, d4$refsnp_id, d4$clinical_significance)
+SNP_AT1 =  d4$refsnp_id
+xtable(d5,digits = c(0,5,5,5))
+
+```
+
+
+```{r,eval=doNot}
+d3 = grep("metabolic", d2$name_1006)
+d4 = d2[d3,]
+d5 = cbind(d4$external_gene_name, d4$refsnp_id, d4$clinical_significance)
+SNP_metabolismo =  d4$refsnp_id
+xtable(d5,digits = c(0,5,5,5))
+```
+
+```{r,eval=doNot}
+d3 = grep("glutathione", d2$name_1006)
+d4 = d2[d3,]
+d5 = cbind(d4$external_gene_name, d4$refsnp_id, d4$clinical_significance)
+SNP_glu =  d4$refsnp_id
+xtable(d5,digits = c(0,5,5,5))
+```
+
+
+```{r,eval=doNot}
+SNPs_estres = c(SNP_GCLM,SNP_GPX, SNP_GR, SNP_XDH, SNP_GSS,SNP_catalytic,SNP_oxi,
+                SNP_flav,SNP_elec,SNP_disulfide,SNP_mito)
+```
+
+
+
+```{r}
+load("../data/Info_snp.rda")
+load("../data/Info_genes_1.rda")
+
+```
+
+
+#Clasificamos las variables predictoras en grupos homogéneos.
+
+```{r}
+vars_vida = c("gender", "age","residence.place", "smoking.status","level.schooling")
+d = grep( "urine*",colnames(hortega_s))
+d1 = hortega_s[,d]
+vars_urine= colnames(d1)
+
+h = grep( "intake",colnames(hortega_s))
+h1 = hortega_s[,h]
+vars_intake = colnames(h1)
+  
+v = grep( "vitamine",colnames(hortega_s))
+v1 = hortega_s[,v]
+vars_vitaminas = colnames(v1)
+vars_metales = c(colnames(hortega_s[87:120]), 
+                 colnames(hortega_s[132:134]),
+                 colnames(hortega_s[140:171,173:201]))
+hortega_s[,vars_metales]
+vars_gramos_comida = colnames(hortega_s[205:225])
+vars_hipertension = colnames(hortega_s[11:16])
+vars_lipidos= c("triglycerides.log", "chol.hdl.no.basal.mg.dl",
+                "chol.ldl.no.basal.mg.dl","chol.tg.no.basal.mg.dl", 
+                "chol.total.no.basal.mg.dl" ) 
+
+vars_estres_oxidativo = c("os.8oxodg.umol.by.mg.prot", "os.mda.umol.by.mg.prot",
+                          "os.gssg.umol.by.mg.prot", 
+                          "os.gssg.gsh.tot.glutiatione.umol.mg.prot",
+                          "os.gsh.umol.by.mg.prot", "os.gssg.gsh.ratio")
+vars_kidney =  c("microalbumina.mg.dl","microalbuminuria.by.creatinine","egfr",
+                 "creatinine.urine.umol.l","albumin.urine.by.hplc.mg.24h")
+
+vars_totales = c("vars_vida","vars_urine","vars_intake","vars_metales","vars_gramos_comida", "vars_hipertension","vars_lipidos","vars_estres_oxidativo","vars_kidney")
+```
+
+
+# Datos de cardio:
+
+```{r}
+follow = read.csv("~/Downloads/db_followup-20171025.csv") 
+heart = data.frame(rep(0,1502))
+follow_heart = cbind(heart,follow)
+
+aneurisma = which(follow_heart$aneurisma.aorta.inc.cat == 1)
+aneurisma_m = which(follow_heart$aneurisma.aorta.mort.cat == 1)
+aneurisma_p = which(follow_heart$aneurisma.aorta.prev.cat == 1)
+
+arritmia = which(follow$arrhythmia.inc.cat == 1)
+arritmia_p = which(follow$arrhythmia.prev.cat == 1)
+
+arteriopatia_periferica = which(follow$arteriopatia.periferica.inc.cat == 1)
+arteriopatia_periferica_p = which(follow$arteriopatia.periferica.prev.cat == 1)
+arteriopatia_periferica_m = which(follow$arteriopatia.periferica.mort.cat == 1)
+
+faltantes = which(is.na(follow_heart$aneurisma.aorta.inc.cat))
+follow_heart$rep.0..1502.[aneurisma] = 1
+follow_heart$rep.0..1502.[arritmia] = 1
+follow_heart$rep.0..1502.[arritmia_p] = 1
+follow_heart$rep.0..1502.[arteriopatia_periferica] = 1
+follow_heart$rep.0..1502.[arteriopatia_periferica_p] = 1
+follow_heart$rep.0..1502.[faltantes] = NA
+
+hortega_h = cbind( follow_heart$rep.0..1502, hortega)
+```
+
+
+# Datos de cancer
+
+```{r}
+follow = read.csv("~/Downloads/db_followup-20171025.csv") 
+cancer = data.frame(cancer = rep(0,1502))
+follow_cancer = data.frame(cancer = follow$cancer.all.inc.cat,hortega.s)
+
+columnas =  c(36,39:41) 
+for ( i in columnas){
+  for ( j in 1:nrow(follow_cancer)){
+     if (follow_cancer[j,i] == 1){
+       print(follow_cancer[j,i])
+        follow_cancer$cancer[j] <- 1
+  }
+ }
+}
+```
+
+
+# Datos de fracturas
+
+```{r}
+fracturas = data.frame(fracturas = rep(0,1502))
+follow_fracturas =  data.frame(fracturas = follow$frx.all.inc.cat,hortega_s)
+data = follow_fracturas
+probabilidad_enfermedad = "probabilidad_fracturas"
+vars = vars_estres_oxidativo
+```
+
+
+
+
+
+## Primera asociación: Muestra/ Datos
+
+```{r}
+Nombre_variables = c("Gender(F/M)","Age","BMI","MDA","GSSH/GSH", "GSSH+GSH","8-Oxo-dG", "1", "2", "3", "4", "5", "6", "7","Blood presure")
+
+z = list(Gender = hortega$gender,
+Age = hortega$age[hortega$diabetes.mellitus.type2 == 1],
+BMI = hortega$BMI[hortega$diabetes.mellitus.type2 == 1],
+MDA = hortega$os.mda.umol.by.mg.prot[hortega$diabetes.mellitus.type2 == 1],
+GSSH = hortega$os.gssg.gsh.ratio[hortega$diabetes.mellitus.type2 == 1],
+GSSH_1 = hortega$os.gssg.gsh.tot.glutiatione.umol.mg.prot[hortega$diabetes.mellitus.type2 == 1],
+Oxo = hortega$os.8oxodg.umol.by.mg.prot[hortega$diabetes.mellitus.type2 == 1],
+Glu = hortega$glucose.mg.dl[hortega$diabetes.mellitus.type2 == 1],
+TC = hortega$chol.total.no.basal.mg.dl[hortega$diabetes.mellitus.type2 == 1],
+TG = hortega$chol.tg.no.basal.mg.dl[hortega$diabetes.mellitus.type2 == 1],
+HDL = hortega$chol.hdl.no.basal.mg.dl[hortega$diabetes.mellitus.type2 == 1],
+LDL = hortega$chol.ldl.no.basal.mg.dl[hortega$diabetes.mellitus.type2 == 1],
+wa = hortega$waist.cm[hortega$diabetes.mellitus.type2 == 1],
+Hip = hortega$hip.cm[hortega$diabetes.mellitus.type2 == 1],
+hp = hortega$pulse.pressure.mmHg[hortega$diabetes.mellitus.type2 == 1]
+)
+
+z0 = list(Gender = hortega$gender,
+Age_0 =  hortega$age[hortega$diabetes.mellitus.type2 == 0],
+BMI_0 = hortega$BMI[hortega$diabetes.mellitus.type2 == 0],
+MDA_0 = hortega$os.mda.umol.by.mg.prot[hortega$diabetes.mellitus.type2 == 0],
+GSSH_0 = hortega$os.gssg.gsh.ratio[hortega$diabetes.mellitus.type2 == 0],
+GSSH_1_0 = hortega$os.gssg.gsh.tot.glutiatione.umol.mg.prot[hortega$diabetes.mellitus.type2 == 0],
+Oxo_0 = hortega$os.8oxodg.umol.by.mg.prot[hortega$diabetes.mellitus.type2 == 0],
+Glu = hortega$glucose.mg.dl[hortega$diabetes.mellitus.type2 == 0],
+TC = hortega$chol.total.no.basal.mg.dl[hortega$diabetes.mellitus.type2 == 0],
+TG = hortega$chol.tg.no.basal.mg.dl[hortega$diabetes.mellitus.type2 == 0],
+HDL = hortega$chol.hdl.no.basal.mg.dl[hortega$diabetes.mellitus.type2 == 0],
+LDL = hortega$chol.ldl.no.basal.mg.dl[hortega$diabetes.mellitus.type2 == 0],
+wa = hortega$waist.cm[hortega$diabetes.mellitus.type2 == 0],
+Hip = hortega$hip.cm[hortega$diabetes.mellitus.type2 == 0],
+hp = hortega$pulse.pressure.mmHg[hortega$diabetes.mellitus.type2 == 0]
+)
+
+Gender = hortega$gender
+Response = hortega$diabetes.mellitus.type2
+
+definitions = data.frame(Variables = Nombre_variables,
+                         Diabetics = rep(0, length(Nombre_variables)),
+                         Controls = rep(0, length(Nombre_variables)))
+Aso_definitions = setNames(data.frame(matrix(data = NA, 
+                                             nrow = 1, 
+                                             ncol = length(Nombre_variables)))
+                           ,Nombre_variables)
+
+
+d = table(Gender,Response)
+x = d[1,1]
+y = d[2,1]
+xy = paste0(x,"/",y)
+definitions$Controls[1] <- xy
+
+x1= d[1,2]
+y1 = d[2,2]
+xy1 =  paste0(x1,"/",y1)
+definitions$Diabetics[1] <- xy1
+
+t = chisq.test(d)
+Aso_definitions[1] <- t$p.value
+
+for ( i in 2:length(z)){
+x = round(mean(z[[i]], na.rm = TRUE),1)
+y = round(sd(z[[i]], na.rm = TRUE),1)
+xy = paste0(x,"(",y,")")
+definitions$Diabetics[i] <- xy}
+
+for ( i in 2:length(z0)){
+x = round(mean(z0[[i]], na.rm = TRUE),1)
+y = round(sd(z0[[i]], na.rm = TRUE),1)
+xy = paste0(x,"(",y,")")
+definitions$Controls[i] <- xy
+
+t = t.test(
+  x           = z[[i]],
+  y           = z0[[i]],
+  alternative = "two.sided",   
+  mu          = 0,
+  var.equal   = TRUE,
+  conf.level  = 0.95
+)
+Aso_definitions[i]<- t$p.value
+xtable(definitions)
+}
+definitions_p = data.frame(definitions, t(Aso_definitions[1,]), p.adjust(t(Aso_definitions[1,]), method = "BH"))
+colnames(definitions_p) = c(colnames(definitions),"p-value","Adjusted p-value")
+xtable(definitions_p, digits = c(0,0,3,3,3,3))
+which(hortega_s$diabetes.mellitus.type2 == "1")
+
+```
+
+#Asocacion parametros estres oxidativo y variables de confusion
+
+```{r}
+#
+Aso_estres_confusion = data.frame(matrix(data =NA, nrow = 4, ncol = 3 ))
+colnames(Aso_estres_confusion) = c("Gender","Age","BMI")
+rownames(Aso_estres_confusion) = c("MDA","GSSH/GSH","GSSH+GSH","8-Oxo-dG")
+
+Aso_estres_confusion_p_valor = data.frame(matrix(data =NA, nrow = 4, ncol = 3 ))
+colnames(Aso_estres_confusion_p_valor) = c("Gender","Age","BMI")
+Aso_estres_confusion_p_valor = c("p-value MDA","p-value GSSH/GSH","p-value GSSH+GSH","p-value 8-Oxo-dG")
+
+
+variable= c("os.mda.umol.by.mg.prot","os.gssg.gsh.ratio","os.gssg.gsh.tot.glutiatione.umol.mg.prot","os.8oxodg.umol.by.mg.prot") 
+c_variable = c("age","BMI")
+  
+f = 0
+for (i in 1:length(variable)){
+for (j in 1:length(c_variable)){
+   x = variable[i]
+   y = c_variable[j]
+  c1 = cor.test(hortega_s[,x],hortega_s[,y], method ="pearson", exact = FALSE, na.rm = TRUE)
+  print(c1)
+  Aso_estres_confusion[i,j+1] = paste0(round(c1$estimate, 5), "(",round(p.adjust(c1$p.value, method = "BH"),5), ")" )
+  f = i+1
+  }
+
+  x_male  =  hortega_s[,x][hortega_s$gender == "Male"]
+  x_female = hortega_s[,x][hortega_s$gender == "Female"]
+  
+ t = t.test(
+  x           = x_male ,
+  y           = x_female,
+  alternative = "two.sided",
+  mu          = 0,
+  var.equal   = TRUE,
+  conf.level  = 0.95
+)
+  Aso_estres_confusion[i,1] = p.adjust(t$p.value, method = "BH") 
+ }
+
+xtable( Aso_estres_confusion)
+
+```
+
+
+
+# Asociación de SNPs con la enfermedad, y eleccion del modelo genético:
+
+```{r}
+SNPs = hortega_s[321:1308]
+clinical = hortega_s[1:320]
+Response = hortega_s$diabetes.mellitus.type2
+Variants = SNPs
+models = c("codominant","dominant","recesive","overdominant","log_additive")
+
+# Cambiamos NA por "0/0"
+for ( i in colnames(Variants)){
+ x = as.character(Variants[,i]) 
+ x[is.na(x)] <- "0/0"
+ Variants[,i] = factor(x)
+}
+
+```
+
+```{r}
+Choose_genetic_model(Response = Response, Variants = Variants, models = models)
+```
+
+```{r}
+d_2 =  which(sapply(Variants,function(y){
+    y = factor(y)
+    nlevels(y) - is.element("0/0",levels(y))*1}) < 3)
+  
+  d_3 = which(sapply(Variants,function(y){
+    y = factor(y)
+    nlevels(y) - is.element("0/0",levels(y))*1}) >= 3)
+  
+  # Para 2 levels
+  
+  
+  Variants_2 = Variants[,d_2]
+  
+  d_1 = which(sapply(Variants_2,function(y){
+    y = factor(y)
+    nlevels(y) - is.element("0/0",levels(y))*1}) < 2)
+  
+ Variants_2 =   Variants_2[,-d_1]
+  
+  ITI_genetic_2 = data.frame(SNP_name = colnames(Variants_2), 
+                             codominant = rep(0, length(colnames(Variants_2))),
+                             dominant = rep(0, length(colnames(Variants_2))),
+                             recessive = rep(0, length(colnames(Variants_2))),
+                             overdominant = rep(0, length(colnames(Variants_2))), 
+                             log_additive = rep(0, length(colnames(Variants_2))),
+                             default = rep(0, length(colnames(Variants_2)))
+  )
+  ITI_genetic_2_g = setNames(data.frame(matrix(ncol = length(colnames(Variants_2)), nrow = nrow(Variants_2))), colnames(Variants_2))
+  
+  for (i in 1:ncol(Variants)){
+    u0 = as.character(Variants[,i])
+    c = strsplit(u0, "/")
+    c = as.data.frame(c)
+    c1 = unname(unlist(c[1,]))
+    c2 = unname(unlist(c[2,]))
+    dominant = names(which.max(table(c(c1,c2))))
+   v0 = unique(c(c1,c2))
+    alternative = v0[ v0 != dominant & v0 != 0] 
+    
+    homocigoto_dominante = paste(dominant,dominant, sep = "/")
+    heterocigoto =  paste(alternative,dominant, sep = "/")
+    heterocigoto_1 =  paste(dominant,alternative, sep = "/")
+    homocigoto_alternativo = paste(alternative,alternative, sep = "/")
+    
+    tipo = gsub(homocigoto_dominante, 1, u0)
+    tipo = gsub( heterocigoto , 0, tipo)
+    tipo = gsub( heterocigoto_1 , 0, tipo)
+    tipo = gsub(homocigoto_alternativo,2,tipo)
+    tipo = gsub("0/0",NA,tipo)
+    
+    
+    # Test:
+    y = table(tipo,Response)
+    y1 = chisq.test(y)
+    print(y1$p.value)
+    ITI_genetic_2[i,7] <- y1$p.value
+    ITI_genetic_2[i,2:6] <- NA
+    
+    tipo = factor(tipo,levels=0:1,
+                  labels=c(homocigoto_alternativo,
+                               homocigoto_dominante))
+    
+    ITI_genetic_2_g[,i] <- tipo
+  }
+  
+  levels(Variants_2[,1])
+  correction_2 = rs_correction(ITI_genetic_2,1, method="BH")
+  correction_2[,1] <- colnames(Variants_2)
+  correction_2 = data.frame(correction_2)
+```
+
+
+```{r}
+#Para 3 levels
+
+Variants_3 = Variants[,d_3]
+ITI_genetic_3 = data.frame(SNP_name = colnames(Variants_3), 
+                           codominant = rep(0, length(colnames(Variants_3))),
+                           dominant = rep(0, length(colnames(Variants_3))),
+                           recessive = rep(0, length(colnames(Variants_3))),
+                           overdominant = rep(0, length(colnames(Variants_3))), 
+                           log_additive = rep(0, length(colnames(Variants_3))),
+                           default = rep(0, length(colnames(Variants_3)))
+)
+ITI_genetic_3_g = setNames(data.frame(matrix(ncol = length(colnames(Variants_3)), nrow = nrow(Variants_3))), colnames(Variants_3))
+
+
+for ( i in 1:ncol(Variants_3)){
+  u0 = as.character(Variants_3[,i])
+  c = strsplit(u0, "/")
+  c = as.data.frame(c)
+  c1 = unname(unlist(c[1,]))
+  c2 = unname(unlist(c[2,]))
+  dominant = names(which.max(table(c(c1,c2))))
+  v0 = unique(c(c1,c2))
+  alternative = v0[ v0 != dominant & v0 != 0] 
+  
+  homocigoto_dominante = paste(dominant,dominant, sep = "/")
+  heterocigoto =  paste(alternative,dominant, sep = "/")
+  heterocigoto_1 =  paste(dominant,alternative, sep = "/")
+  homocigoto_alternativo = paste(alternative,alternative, sep = "/")
+  
+  tipo = gsub(homocigoto_dominante, 1, u0)
+  tipo = gsub( heterocigoto , 2, tipo)
+  tipo = gsub( heterocigoto_1 , 2, tipo)
+  tipo = gsub(homocigoto_alternativo,0,tipo)
+  tipo = gsub("0/0",NA,tipo)
+  
+  for (j in modelos){
+    geneticModel  = j
+    
+    if (geneticModel == "codominant"){
+      tipo_1 = tipo
+      tipo_1 = factor(tipo_1,levels=0:2,
+                      labels=c(homocigoto_alternativo,
+                               homocigoto_dominante,heterocigoto))
+      # Test: 
+      
+      y = table(tipo_1,Response)
+      y1 = chisq.test(y)
+      ITI_genetic_3[i,2] <- y1$p.value
+      
+    }
+    
+    if(geneticModel == "dominant"){
+      tipo_2 = tipo
+      tipo_2 = gsub(2,1,tipo_2)
+      tipo_2 = factor(tipo_2,levels=0:1,
+                      labels=c(homocigoto_alternativo,
+                               paste(homocigoto_dominante,heterocigoto)))
+      
+      #Test:
+      y = table(tipo_2,Response)
+      y1 = chisq.test(y)
+      ITI_genetic_3[i,3] <- y1$p.value
+    }
+    
+    if (geneticModel == "recesive"){
+      tipo_3 = tipo 
+      tipo_3 = gsub(2,0,tipo_3)
+      tipo_3 = factor(tipo_3,levels=0:1,
+                      labels=c(paste(homocigoto_alternativo,heterocigoto),
+                               homocigoto_dominante))
+      y = table(tipo_3,Response)
+      y1 = chisq.test(y)
+      ITI_genetic_3[i,4] <- y1$p.value
+    }
+    
+    if(geneticModel == "overdominant"){
+      tipo_4 = tipo
+      tipo_4 = gsub(0,1,tipo_4)
+      tipo_4 = factor(tipo_4,levels=1:2,
+                      labels=c(paste(homocigoto_dominante,homocigoto_alternativo),
+                               heterocigoto))
+      y = table(tipo_4,Response)
+      y1 = chisq.test(y)
+      ITI_genetic_3[i,5] <- y1$p.value
+    }
+    
+    if(geneticModel == "log_additive"){
+      tipo_5 = tipo
+      tipo_5 = factor(tipo_5,levels=0:2,ordered = TRUE,
+                      labels=c(homocigoto_alternativo,
+                               homocigoto_dominante,heterocigoto))
+      
+      y = table(tipo_5,Response)
+      y1 = CochranArmitageTest(y)
+      ITI_genetic_3[i,6] <- y1$p.value
+    }
+  }
+  
+  ITI_genetic_3[i,7] <- NA   
+  model = which.min(ITI_genetic_3[i,]) 
+  if (model == 2){
+    tipo = tipo_1
+  }
+  if (model == 3){
+    tipo = tipo_2
+  }
+  
+  if (model == 4){
+    tipo = tipo_3
+  }
+  
+  if (model == 5){
+    tipo = tipo_4
+  }
+  
+  if (model == 6){
+    tipo = tipo_5
+  }
+  
+  ITI_genetic_3_g[,i] <- tipo
+}
+
+correction_3 = data.frame(rs_correction(ITI_genetic_3,1, method="BH"))
+correction_3[,1] <- colnames(Variants_3)
+correction_3 = data.frame(correction_3)
+
+correction_variant = data.frame(rbind(correction_2,correction_3))
+ITI_genetic = data.frame(cbind(Variants_2,ITI_genetic_3_g))
+
+correction_variant
+
+correction = data.frame(SNP_name = correction_variant$SNP_name, model = rep(0, length(correction_variant$SNP_name)), p.value = rep(0, length(correction_variant$SNP_name)))
+
+for( i in 1:length(correction_variant$SNP_name)){
+   correction$model[i] <- which.min(correction_variant[i,])
+   correction$p.value[i] <- correction_variant[i,which.min(correction_variant[i,])]
+   correction$p.value[i] <-  round(as.numeric(correction$p.value[i]),5)
+
+   if (correction$model[i] == 7){
+     correction$model[i] <- "COD"
+   }
+   if (correction$model[i] == 2){
+     correction$model[i] <- "COD"
+   }
+   if (correction$model[i] == 3){
+     correction$model[i] <- "DOM"
+   }
+    if (correction$model[i] == 4){
+     correction$model[i] <- "REV"
+    }
+    if (correction$model[i] == 5){
+     correction$model[i] <- "OVD"
+    }
+   if (correction$model[i] == 6){
+     correction$model[i] <- "ADV"
+   }
+   
+}
+   
+d =  order(correction$p.value)
+   correction = correction[d,]
+   rownames(correction) = NULL
+   colnames(correction) = c("SNP","model","p.valor")
+   
+  ITI_genetic[ITI_genetic == "0/0"] <- NA
+```
+
+
+```{r}
+xtable(correction, capture = " Asociación SNPs y diabetes, con el modelo genetico más estadisticamente mas significativo. Models: COD: codominant, DOM: dominant, REV: recesive, OVD: Overdominant, ADV: additive", digits = c(0, 0,5,5))
+
+g =  list()
+ count = 1
+ count_1 = 50
+ for(i in 1:(nrow(correction)/50)){
+   g1 = correction[count:count_1,]
+   g[[i]] = g1
+   count = count + 50
+   count_1 = count_1 + 50
+ }
+   for(i in 11:18){
+    print(xtable(g[[i]], digits = c(0,5,5,5)), include.rownames= FALSE)
+   }
+ 
+ d1 =Tabla_final_3[891:nrow(Tabla_final_3),]
+ print(xtable(d1, include.rownames= FALSE))
+
+
+
+```
+
+
+
+
+```{r}
+Variants = hortega_genetic_2[326:1222]
+
+ d_2 =  which(sapply(Variants,function(y){
+    y = factor(y)
+    nlevels(y)}) == 2 )
+  
+  d_3 = which(sapply(Variants,function(y){
+    y = factor(y)
+    nlevels(y) - is.element("0/0",levels(y))*1}) >= 3)
+  
+for( i in 1:ncol(Variants)){
+   c =  nlevels(Variants[,i])
+ print(c)
+}
+levels(hortega_s$rs1805081)
+```
+
+
+```{r}
+# 2 niveles
+  
+ Variants_2 = Variants[,d_2]
+data = hortega_genetic_2
+ 
+ Aso_covariables_2 = data.frame(SNPs = colnames(Variants_2), p.valor_Oxo = rep(0, ncol(Variants_2)), p.valor_GSSH = rep(0, ncol(Variants_2)), p.valor_GSSH_1 = rep(0, ncol(Variants_2)), p.valor_MDA = rep(0, ncol(Variants_2)))
+
+f = function(Variants_2,data,j){
+  
+for (j in 1:ncol(Variants_2)) {
+  
+D_oxo = list()
+D0_oxo = list()
+
+D_mda = list()
+D0_mda= list()
+
+D_gssh = list()
+D0_gssh = list()
+
+D_gssh_1 = list()
+D0_gssh_1 = list()
+
+
+for ( i in 1:nrow(Variants_2)){
+  
+ x = levels(Variants_2[,j])
+    x1 = x[1]
+    x2 = x[2]
+    
+  if (is.na(Variants_2[i,j])){
+  D_oxo[[i]] = NA
+  D0_oxo[[i]] = NA 
+  
+  D_mda[[i]] = NA 
+  D0_mda[[i]] = NA
+
+  D_gssh[[i]] = NA  
+  D0_gssh[[i]] = NA  
+  
+  D_gssh_1[[i]] = NA 
+  D0_gssh_1[[i]] = NA 
+      
+  } else if (Variants_2[i,j] == x1){
+  D1 = data$os.8oxodg.umol.by.mg.prot[i] 
+  D_oxo[[i]] = D1
+  D0_oxo[[i]] = NA 
+  
+  D2 = data$os.mda.umol.by.mg.prot[i]
+   D_mda[[i]] = D2
+  D0_mda[[i]] = NA
+ 
+  D3 = data$os.gssg.gsh.ratio[i]
+  D_gssh[[i]] = D3
+  D0_gssh[[i]] = NA 
+  
+  D4 = data$os.gssg.gsh.ratio[i]
+  D_gssh_1[[i]] = D4
+  D0_gssh_1[[i]] = NA 
+  
+   }  else if (Variants_2[i,j] == x2){
+    D1 = data$os.8oxodg.umol.by.mg.prot[i] 
+    D_oxo[[i]] = NA 
+    D0_oxo[[i]] = D1
+   
+    
+    D2 = data$os.mda.umol.by.mg.prot[i]
+    D_mda[[i]] = NA
+    D0_mda[[i]] = D2
+ 
+    D3 = data$os.gssg.gsh.ratio[i]
+    D_gssh[[i]] = NA
+    D0_gssh[[i]] = D3
+    
+     D4 = data$os.gssg.gsh.ratio[i]
+     D_gssh_1[[i]] = NA
+     D0_gssh_1[[i]] = D4 
+   }
+ }
+}
+  t = t.test(
+  x           = unlist(D_oxo),
+  y           = unlist(D0_oxo),
+  alternative = "two.sided",
+  mu          = 0,
+  var.equal   = TRUE,
+  conf.level  = 0.95
+)
+  
+  t1 = t.test(
+  x           = unlist(D_mda),
+  y           = unlist(D0_mda),
+  alternative = "two.sided",
+  mu          = 0,
+  var.equal   = TRUE,
+  conf.level  = 0.95
+)
+  
+  t2 = t.test(
+  x           = unlist(D_gssh),
+  y           = unlist(D0_gssh) ,
+  alternative = "two.sided",
+  mu          = 0,
+  var.equal   = TRUE,
+  conf.level  = 0.95
+)
+ 
+   t3 = t.test(
+  x           = unlist(D_gssh_1),
+  y           = unlist(D0_gssh_1) ,
+  alternative = "two.sided",
+  mu          = 0,
+  var.equal   = TRUE,
+  conf.level  = 0.95
+)
+  
+Aso_covariables_2$p.valor_Oxo[j]<- t$p.value
+Aso_covariables_2$p.valor_MDA[j]<- t1$p.value
+Aso_covariables_2$p.valor_GSSH[j]<- t2$p.value
+Aso_covariables_2$p.valor_GSSH_1[j]<- t3$p.value
+ }
+```
+
+
+```{r}
+f(Variants_2 = Variants_2, hortega_genetic = hortega_genetic, j = 2)
+```
+
+
+```{r}
+Variants_3 = Variants[,d_3]
+ Aso_covariables_3 = data.frame(SNPs = colnames(Variants_3), p.valor_Oxo = rep(0, ncol(Variants_3)), p.valor_GSSH = rep(0, ncol(Variants_3)), p.valor_GSSH_1 = rep(0, ncol(Variants_3)), p.valor_MDA = rep(0, ncol(Variants_3)))
+
+  
+for ( j in 1:ncol(Variants_3)){
+x = j
+datos = data.frame( SNP = as.character(Variants_3[,j]), OXO = data$os.8oxodg.umol.by.mg.prot)
+datos0 = datos[complete.cases(datos),]
+anova <- aov(datos0$OXO ~ datos0$SNP)
+
+Aso_covariables_3$p.valor_Oxo[x] = summary(anova)[[1]][["Pr(>F)"]][1]
+
+datos1 = data.frame( SNP = as.character(Variants_3[,j]), MDA = data$os.mda.umol.by.mg.prot)
+datos10 = datos1[complete.cases(datos1),]
+anova1 <- aov(datos10$MDA ~ datos10$SNP)
+Aso_covariables_3$p.valor_MDA[x] = summary(anova1)[[1]][["Pr(>F)"]][1]
+
+datos2 = data.frame( SNP = as.character(Variants_3[,j]), GSSH = data$os.gssg.gsh.ratio)
+datos20 = datos2[complete.cases(datos2),]
+anova2 <- aov(datos20$GSSH ~ datos20$SNP)
+Aso_covariables_3$p.valor_GSSH[x] = summary(anova2)[[1]][["Pr(>F)"]][1]
+
+datos3 = data.frame( SNP = as.character(Variants_3[,j]), GSSH_1 = data$os.gssg.gsh.tot.glutiatione.umol.mg.prot)
+datos30 = datos3[complete.cases(datos3),]
+anova3 <- aov(datos30$GSSH ~ datos30$SNP)
+Aso_covariables_3$p.valor_GSSH_1[x] = summary(anova3)[[1]][["Pr(>F)"]][1]
+}
+ 
+ s = which(Aso_covariables_3$p.valor_MDA < 0.05)
+ s1 = Aso_covariables_3$SNPs[s]
+ 
+ d = which(Aso_covariables_3$p.valor_Oxo < 0.05)
+  d1 = Aso_covariables_3$SNPs[d]
+  
+ f = which(Aso_covariables_3$p.valor_GSSH < 0.05)
+  f1 = Aso_covariables_3$SNPs[f]
+  
+ g = which(Aso_covariables_3$p.valor_GSSH_1 < 0.05)
+  g1 = Aso_covariables_3$SNPs[g]
+  
+x = intersect(f1,g1)
+f = 
+
+c =c()
+ for(i in 1:nrow(Aso_covariables_3)){
+  if(Aso_covariables_3$p.valor_Oxo[i] < 0.05 & Aso_covariables_3$p.valor_GSSH[i] < 0.05 & Aso_covariables_3$p.valor_GSSH_1[i] < 0.05 & Aso_covariables_3$p.valor_MDA[i] < 0.05){
+    x = Aso_covariables_3$SNPs[i] 
+    c = c(c,x)
+   }
+ }
+
+c =c()
+ for(i in 1:nrow(Aso_covariables_3)){
+  if(Aso_covariables_3$p.valor_Oxo[i] < 0.05 & Aso_covariables_3$p.valor_GSSH[i] < 0.05 & Aso_covariables_3$p.valor_GSSH_1[i] < 0.05 ){
+    x = Aso_covariables_3$SNPs[i] 
+    c = c(c,x)
+   }
+ }
+
+c =c()
+ for(i in 1:nrow(Aso_covariables_3)){
+  if(Aso_covariables_3$p.valor_MDA[i] < 0.05 & Aso_covariables_3$p.valor_GSSH[i] < 0.05 & Aso_covariables_3$p.valor_GSSH_1[i] < 0.05 ){
+    x = Aso_covariables_3$SNPs[i] 
+    c = c(c,x)
+   }
+ }
+
+c =c()
+ for(i in 1:nrow(Aso_covariables_3)){
+  if(Aso_covariables_3$p.valor_MDA[i] < 0.05 & Aso_covariables_3$p.valor_GSSH[i] < 0.05 & Aso_covariables_3$p.valor_GSSH_1[i] < 0.05 ){
+    x = Aso_covariables_3$SNPs[i] 
+    c = c(c,x)
+   }
+ }
+```
+
+```{r}
+Aso = read.csv("~/Documents/SNP_fenotipo_1.csv", sep = "," )
+Aso =  cbind(SNP = Aso$SNP, Aso)
+
+g =  list()
+ count = 1
+ count_1 = 50
+ for(i in 1:(nrow(Aso)/33)){
+   g1 = Aso[count:count_1,-1]
+   g[[i]] = g1
+   count = count + 50
+   count_1 = count_1 + 50
+ }
+   for(i in 11:18){
+    print(xtable(g[[i]], digits = c(0,4,4,4,4,4)), include.rownames= FALSE)
+   }
+ 
+ d1 =Tabla_final_3[891:nrow(Tabla_final_3),]
+ print(xtable(d1, include.rownames= FALSE))
+
+```
+
+
+```{r}
+Aso_covariables =  rbind(Aso_covariables_2, Aso_covariables_3)
+ASo_cov_p.adjust = data.frame(rs_correction(Aso_covariables[,2:5],2, method = "BH"))
+Aso_cov_adjust = data.frame(Aso_covariables$SNPs, ASo_cov_p.adjust)
+
+xtable(ASO, capture = "Asociación SNPs y covariables fenotipicas, con el modelo genetico más estadisticamente mas significativo anteriormente seleccionado.", digits = c(4,4,4,4,4,4), include.rownames=FALSE)
+```
+
+
+
+#Asocaciación de diabetes/estres oxidativo
+
+```{r}
+
+Aso_diabetes_estres = data.frame(p.valor_Oxo = NA , 
+                                 p.valor_MDA = NA , 
+                                 p.valor_GSSH = NA , 
+                                 p.valor_GSSH_1 = NA)
+
+z = list(Gender = hortega_s$gender,
+Age = hortega_s$age[hortega_s$diabetes.mellitus.type2 == 1],
+BMI = hortega_s$BMI[hortega_s$diabetes.mellitus.type2 == 1],
+MDA = hortega_s$os.mda.umol.by.mg.prot[hortega_s$diabetes.mellitus.type2 == 1],
+GSSH = hortega_s$os.gssg.gsh.ratio[hortega_s$diabetes.mellitus.type2 == 1],
+GSSH_1 = hortega_s$os.gssg.gsh.tot.glutiatione.umol.mg.prot[hortega_s$diabetes.mellitus.type2 == 1],
+Oxo = hortega_s$os.8oxodg.umol.by.mg.prot[hortega_s$diabetes.mellitus.type2 == 1]
+)
+
+z0 = list(Gender = hortega_s$gender,
+Age_0 =  hortega_s$age[hortega_s$diabetes.mellitus.type2 == 0],
+BMI_0 = hortega_s$BMI[hortega_s$diabetes.mellitus.type2 == 0],
+MDA_0 = hortega_s$os.mda.umol.by.mg.prot[hortega_s$diabetes.mellitus.type2 == 0],
+GSSH_0 = hortega_s$os.gssg.gsh.ratio[hortega_s$diabetes.mellitus.type2 == 0],
+GSSH_1_0 = hortega_s$os.gssg.gsh.tot.glutiatione.umol.mg.prot[hortega_s$diabetes.mellitus.type2 == 0],
+Oxo_0 = hortega_s$os.8oxodg.umol.by.mg.prot[hortega_s$diabetes.mellitus.type2 == 0]
+)
+
+
+ t = t.test(
+  x           = z$Oxo,
+  y           = z0$Oxo_0,
+  alternative = "two.sided",
+  mu          = 0,
+  var.equal   = TRUE,
+  conf.level  = 0.95
+)
+  
+  t1 = t.test(
+  x           = z$MDA,
+  y           = z0$MDA_0,
+  alternative = "two.sided",
+  mu          = 0,
+  var.equal   = TRUE,
+  conf.level  = 0.95
+)
+  
+  t2 = t.test(
+  x           = z$GSSH,
+  y           = z0$GSSH_0 ,
+  alternative = "two.sided",
+  mu          = 0,
+  var.equal   = TRUE,
+  conf.level  = 0.95
+)
+ 
+   t3 = t.test(
+  x           = z$GSSH_1,
+  y           = z0$GSSH_1_0 ,
+  alternative = "two.sided",
+  mu          = 0,
+  var.equal   = TRUE,
+  conf.level  = 0.95
+)
+  
+Aso_diabetes_estres$p.valor_Oxo<- t$p.value
+Aso_diabetes_estres$p.valor_MDA<- t1$p.value
+Aso_diabetes_estres$p.valor_GSSH<- t2$p.value
+Aso_diabetes_estres$p.valor_GSSH_1<- t3$p.value
+ 
+Aso_diabetes_estres_p.adjust = data.frame(rs_correction(Aso_diabetes_estres,1, method = "BH"))
+xtable(Aso_diabetes_estres_p.adjust, capture = "Asociación Diabetes y parametros estrés oxidativo", digits = c(4,4,4,4,4), include.rownames=FALSE)
+```
+
+
+```{r}
+SNP = ASO$SNPs
+d_2 =  which(sapply(hortega_genetic[,SNP],function(y){
+    y = factor(y)
+    nlevels(y)}) < 2)
+SNP = colnames(SNP[,-d_2])
+z = c()
+for ( i in hortega_genetic[,SNP]){
+  y = factor(i)
+    z1 = levels(y)
+    z = c(z,z1)
+}
+```
+
+
+
+
+
+```{r,eval=doNot}
+r = order(as.numeric(Info_snp$chrom_start))
+Info = Info_snp[r,]
+Info$chr_name[Info$chr_name == "X"] <- 23
+t = order(as.numeric(Info$chr_name))
+Info_1 = Info[t,]
+SNP_ordenadas = Info_1$refsnp_id
+```
+
+
+
+```{r}
+d = match(SNP_ordenadas,colnames(ITI_genetic))
+which(SNP_ordenadas == "rs237484")
+length(SNP_ordenadas)
+d1 = which(is.na(d))
+d2 = SNP_ordenadas[d1]
+SNP_nose = colnames(ITI_genetic[,d1])
+SNPs_ordenadas = c(SNP_ordenadas[d][!(is.na(SNP_ordenadas[d]))], SNP_nose)
+which(SNPs_ordenadas == "rs2071429")
+
+save(ITI_genetic, file = "~/Desktop/Rebeca/ITI_genetic_1.rda")
+
+load("~/Desktop/Rebeca/ITI_genetic_1.rda")
+load("~/Desktop/Rebeca/SNPs_ordenadas_1.rda")
+
+
+for(i in 1:ncol(ITI_genetic)){
+  ITI_genetic[,i] = factor(ITI_genetic[,i], ordered = FALSE)
+}
+
+hortega_genetic_1 = cbind(clinical,ITI_genetic[SNPs_ordenadas])
+
+d_1 = which(sapply(hortega_genetic_1,function(y){
+    y = factor(y)
+    nlevels(y) }) < 2)
+hortega_genetic_1 = hortega_genetic_1[-d_1]
+
+
+
+
+save(hortega_genetic_1, file = "~/Desktop/Rebeca/hortega_genetic_2.rda")
+```
+
+
+
+```{r}
+load("../data/hortega_genetic_1.rda")
+load("../data/SNPs_ordenadas_1.rda")
+load("~/Desktop/Rebeca/hortega_genetic_1.rda")
+load("~/Desktop/Rebeca/SNPs_ordenadas_1.rda")
+```
+
+```{r}
+for (i in 303:1199){
+  hortega_genetic_1[,i] = factor(hortega_genetic_1[,i], ordered = FALSE)
+}
+
+  sapply(hortega_genetic_1[303:1199], class)
+```
+
+
+```{r}
+#,"os.8oxodg.umol.by.mg.prot", "os.gssg.gsh.ratio", "os.gssg.gsh.tot.glutiatione.umol.mg.prot", "os.mda.umol.by.mg.prot"
+hortega_genetic$os.gssg.gsh.tot.glutiatione.umol.mg.prot
+
+which(SNP == "rs196904")
+which(SNP == "rs2410718")
+ 
+SNP = colnames(hortega_genetic_1[303:1199])
+response = "diabetes.mellitus.type2"
+vars_1 = c("BMI","gender","age")
+vars = c("os.mda.umol.by.mg.prot")
+data = hortega_genetic_1
+
+
+```
+
+```{r}
+SNP = "rs2279885"
+ff = as.formula(paste0(response," ~ ",paste0("(",paste0(SNP,collapse="+"),")*(",
+                                               paste0(vars,collapse = "+"),")")))
+data0 = data[,c(response,SNP,vars)]
+data0 = data0[complete.cases(data0),]
+fit0 = glm(ff,data = data0, family = "binomial")
+summary(fit0)
+```
+
+
+## Calculate tercils mda
+
+```{r}
+x = hortega_genetic_1$os.mda.umol.by.mg.prot
+probs = c(.33,.66)
+mda_1 = cut(x,breaks=c(-Inf, quantile(x,probs=c(.33,.66), na.rm = TRUE),+Inf))
+
+hortega_genetic_1 = data.frame(hortega_genetic_1, mda_1 = mda_1)
+data = hortega_genetic_1
+
+
+```
+
+## Calculate tercils oxo
+
+```{r}
+x = hortega_genetic_1$os.8oxodg.umol.by.mg.prot
+probs = c(.33,.66)
+oxo_1 = cut(x,breaks=c(-Inf, quantile(x,probs=c(.33,.66), na.rm = TRUE),+Inf))
+
+hortega_genetic_1 = data.frame(hortega_genetic_1, oxo_1 = oxo_1)
+data = hortega_genetic_1
+
+class(hortega_genetic_1$oxo_1)
+
+```
+
+
+## Calculate tercils gssh/gsh
+
+```{r}
+x = hortega_genetic_1$os.gssg.gsh.ratio
+probs = c(.33,.66)
+gssh_1 = cut(x,breaks=c(-Inf, quantile(x,probs=c(.33,.66), na.rm = TRUE),+Inf))
+
+hortega_genetic_1 = data.frame(hortega_genetic_1, gssh_1 = gssh_1)
+data = hortega_genetic_1
+
+```
+
+
+## Calculate tercils gssh+gsh
+
+```{r}
+x = hortega_genetic_1$os.gssg.gsh.tot.glutiatione.umol.mg.prot
+probs = c(.33,.66)
+gssh_2 = cut(x,breaks=c(-Inf, quantile(x,probs=c(.33,.66), na.rm = TRUE),+Inf))
+
+hortega_genetic_1 = data.frame(hortega_genetic_1, gssh_2 = gssh_2)
+data = hortega_genetic_1
+
+```
+
+
+
+
+```{r}
+#"os.8oxodg.umol.by.mg.prot","os.gssg.gsh.ratio"
+#os.gssg.gsh.tot.glutiatione.umol.mg.prot
+response = "diabetes.mellitus.type2"
+vars_1 = c("BMI","gender","age")
+vars =  "os.gssg.gsh.tot.glutiatione.umol.mg.prot"
+data = hortega_genetic_1
+SNP = colnames(hortega_genetic_1[303:1199])
+```
+
+#Modelo 0: diabetes + SNP + covariable discreta
+```{r}
+glmSNPs = function(response,SNP,vars,data){
+  
+  if(is.null(vars))
+    ff = as.formula(paste0(response," ~ ",paste0(SNP,collapse="+")))
+  
+  if(!is.null(vars))
+  ff = as.formula(paste0(response," ~ ",paste0("(",paste0(SNP,collapse="+"),")*(",
+                                               paste0(vars,collapse = "+"),")")))
+
+data0 = data[,c(response,SNP,vars)]
+data0 = data0[complete.cases(data0),]
+fit0 = glm(ff,data = data0)
+fit0.s = step(fit0,direction="both",trace=0)
+fit0.s
+}
+```
+
+
+
+```{r}
+l2 = NULL
+     m2 = NULL
+     for ( i in 1:length(SNP)){
+  res= glmSNPs(response = response ,SNP = SNP[i],
+                 vars= vars ,data= data)
+  b = coef(summary(res))
+   
+  x = data.frame(SNP = rownames(b),  coeficientes = b[,1],p.valores=b[,4])
+ l2= rbind(l2,x)
+ 
+ ## odds ratios and 95% CI
+ b1 = exp(cbind(OR = coef(res), confint(res)))
+b1_1 = data.frame(b1)
+if(length(colnames(b1_1)) == 3){
+  b1_2 = data.frame(SNP = rownames(b1_1), OR = b1_1[,1], CI = paste(b1_1[,2],b1_1[,3], sep = "-"))
+  m2 = rbind(m2,b1_2)
+}
+     }
+     
+ 
+```
+
+
+
+
+```{r}
+l3 = data.frame( SNP = rownames(l2) ,coeficientes = l2[,2],p.valores=l2[,3],
+                 p.valores.ajustados =  rs_correction(l2,2,method = "BH")[,3])  
+
+d =  grep("rs2410718",l3$SNP)
+d1 = l3[d,]
+```
+
+
+```{r}
+x2 = grep("*.:" , l3$SNP)
+     x3 = l3[x2,]
+      s =  which(x3$p.valores.ajustados < 0.05)
+     x4 = x3[s,]
+     x5 = x3[-s,]
+      x6 = str_extract(rownames(x4), ".*:") 
+   x7 = str_replace(x6, ":","") 
+  
+    x2_m = grep("rs2410718" ,x3$SNP)
+    x3_m = m2[x2_m,]
+    x2_m = grep("rs2410718" ,m2$SNP)
+     x3_m = m2[x2_m,]
+   
+    
+    x2_m = grep("rs196904" ,x3$SNP)
+    x3_m = x3[x2_m,]
+    x2_m_o = grep("rs196904" ,m2$SNP)
+     x3_m_o = m2[x2_m_o,]
+    
+     
+     rs11574845
+     
+      x2_m = grep("rs5182" ,x3$SNP)
+    x3_m = x3[x2_m,]
+    x2_m_o = grep("rs5182" ,m2$SNP)
+     x3_m_o = m2[x2_m_o,]
+     
+     rs5182_0_coef = x3_m
+     rs5182_0_OR = x3_m_o[3:6,]
+     
+     #mda  
+  rs196904_0_coef = x3_m
+   rs196904_0_OR = x3_m_o[3:6,]
+   
+   #oxo
+   rs2410718_0_coef = x3[211:213,]
+   rs2410718_0_OR = x3_m[3:6,]
+   
+   #gssh/gsh
+   rs2410718_0_coef_g = x3[211:213,] #Nohay significacion
+   rs2410718_0_OR_g = x3_m[3:6,]
+   
+   #gssh+gsh
+    rs2410718_0_coef_g2 = x3[211:213,] #Nohay significacion
+    rs2410718_0_OR_g2 = x3_m
+   
+```
+
+
+#Modelo 1: diabetes + SNP + covariable discreta + covariables de confusion 
+```{r}
+glmSNP_2 = function(response,SNP,vars,data,vars_1){ 
+
+   ff = as.formula(paste0(response," ~ ",paste0("(",paste0(SNP,collapse="+"),")","*","(",
+                                               paste0(vars,collapse = "+"),")", "+","(",
+                                             paste0(vars_1,collapse = "+"),")")))
+data0 = data[,c(response,SNP,vars,vars_1)]
+data0 = data0[complete.cases(data0),]
+fit0 = glm(ff,data = data0)
+fit0.s = step(fit0,direction="both",trace=0)
+fit0.s
+}
+
+l2_1 = NULL
+m2_1 = NULL
+     for ( i in 1:length(SNP)){
+  res= glmSNP_2(response = response ,SNP = SNP[i],
+                 vars= vars,vars_1 = vars_1 ,data= data)
+  b = coef(summary(res))
+  x1 = data.frame( coeficientes = b[,1],p.valores=b[,4])
+    l2_1= rbind(l2_1,x1)
+    
+    b1_2 = exp(cbind(OR = coef(res), confint(res)))
+b1_2 = data.frame(b1_2)
+if(length(colnames(b1_2)) == 3){
+  b1_2 = data.frame(SNP = rownames(b1_2), OR = b1_2[,1], CI = paste(b1_2[,2],b1_2[,3], sep = "-"))
+  m2_1 = rbind(m2_1,b1_2)
+}
+     }
+```
+
+
+```{r}
+l3_1 = data.frame( SNP = rownames(l2_1) ,coeficientes = l2_1[,1],p.valores=l2_1[,2],
+                 p.valores.ajustados =  rs_correction(l2_1,2,method = "BH")[,2])  
+     x2_1 = grep(":" , l3_1$SNP)
+     x3_1 = l3_1[x2_1,]
+     s =  which(x3_1$p.valores.ajustados < 0.05)
+     x4_1 = x3_1[s,]
+     
+     
+     #mda  
+     
+    x2_m_1s = grep("rs196904" ,x3_1$SNP)
+    x3_m_1s = x3_1[x2_m_1s,]
+    x2_m_os = grep("rs196904" ,m2_1$SNP)
+    x3_m_os = m2_1[x2_m_os,]
+     
+    
+    rs5182
+    
+    x2_m_1s = grep("rs5182" ,x3_1$SNP)
+    x3_m_1s = x3_1[x2_m_1s,]
+    x2_m_os = grep("rs5182" ,m2_1$SNP)
+    x3_m_os = m2_1[x2_m_os,]
+    
+    rs5182_0_coef_1 = x3_m_1s
+  rs5182_0_OR_1 = x3_m_os[3:6,]
+  
+  x2_m_1s = grep("rs196904" ,x3_1$SNP)
+    x3_m_1s = x3_1[x2_m_1s,]
+    x2_m_os = grep("rs196904" ,m2_1$SNP)
+    x3_m_os = m2_1[x2_m_os,]
+    
+  rs196904_0_coef_1 = x3_m_1s
+   rs196904_0_OR_1 = x3_m_os[3:6,]
+   
+   
+     
+     #mda  
+  rs196904_0_coef = x3_m
+   rs196904_0_OR = x3_m_o[3:6,]
+     
+  x2_m_1 = grep("rs2410718" ,m2_1$SNP)
+     x3_m_1 = m2_1[x2_m_1,]
+     
+  rs196904_0_coef_1 = x3_1[291:294,]
+   rs196904_0_OR_1 = x3_m_1[3:6,]
+   
+   rs2410718_0_coef_1 = x3_1[291:294,]
+   rs2410718_0_OR_1 = x3_m_1[3:6,]
+```
+
+
+
+#Modelo 2: diabetes + SNP + covariable discreta + covariables de confusion + una de las otras dos covariables de estres oxidativo
+
+```{r}
+#c("oxo_1","os.mda.umol.by.mg.prot","os.gssg.gsh.ratio")
+vars = c("mda_1","os.8oxodg.umol.by.mg.prot","os.gssg.gsh.ratio")
+
+
+glmSNP_2 = function(response,SNP,vars,data,vars_1){
+
+   ff = as.formula(paste0(response," ~ ",paste0("(",paste0(SNP,collapse="+"),")","*","(",
+                                               paste0(vars,collapse = "+"),")", "+","(",
+                                             paste0(vars_1,collapse = "+"),")")))
+data0 = data[,c(response,SNP,vars,vars_1)]
+data0 = data0[complete.cases(data0),]
+fit0 = glm(ff,data = data0)
+fit0.s = step(fit0,direction="both",trace=0)
+fit0.s
+}
+```
+
+
+```{r}
+l2_2 = NULL
+m2_2 = NULL
+     for ( i in 1:length(SNP)){
+  res= glmSNP_2(response = response ,SNP = SNP[i],
+                 vars= vars,vars_1 = vars_1 ,data= data)
+  b = coef(summary(res))
+  x1_2 = data.frame( coeficientes = b[,1],p.valores=b[,4])
+    l2_2= rbind(l2_1,x1_2)
+    
+    b1_3 = exp(cbind(OR = coef(res), confint(res)))
+b1_3 = data.frame(b1_3)
+if(length(colnames(b1_3)) == 3){
+  b1_4 = data.frame(SNP = rownames(b1_3), OR = b1_3[,1], CI = paste(b1_3[,2],b1_3[,3], sep = "-"))
+  m2_2 = rbind(m2_2,b1_2)
+}
+     }
+```
+
+
+```{r}
+l3_2 = data.frame( SNP = rownames(l2_2) ,coeficientes = l2_2[,1],p.valores=l2_2[,2],
+                 p.valores.ajustados =  rs_correction(l2_2,2,method = "BH")[,2])  
+     x2_2 = grep(":" , l3_2$SNP)
+     x3_2 = l3_2[x2_2,]
+     s =  which(x3_2$p.valores.ajustados < 0.05)
+     x4_2 = x3_2[s,]
+     
+     
+     x2_m_2s = grep("rs196904" ,x3_2$SNP)
+    x3_m_2s = x3_2[x2_m_1s,]
+    x2_m_2os = grep("rs196904" ,m2_2$SNP)
+    x3_m_2os = m2_2[x2_m_2os,]
+    
+     #Los elimina:
+  rs196904_0_coef_2 = x3_m_2s
+   rs196904_0_OR_2 = x3_m_2[ x3_m_2os,]
+     
+  x2_m_2 = grep("rs2410718" ,m2_2$SNP)
+     x3_m_2 = m2_2[x2_m_2,]
+     
+     x2_m_2 = grep("rs2410718" ,m2_2$SNP)
+     x3_m_2 = m2_2[x2_m_2,]
+  
+    
+   
+   #rs2410718: los p valores ajustados son no significativos
+   
+   rs2410718_0_coef_2 = x3_2[177:179,]
+   rs2410718_0_OR_2 = x3_m_2[53:54,]
+   
+```
+
+
+```{r}
+x = data.frame(rs5182_0_coef_1, rs5182_0_OR_1)
+  x1 = data.frame(rs5182_0_coef, rs5182_0_OR)
+  x2 = 
+  x_rs5182 = rbind(x1, x,x2)
+  
+  x2 = data.frame( rs196904_0_coef,rs196904_0_OR)
+  x3 = data.frame( rs196904_0_coef_1,rs196904_0_OR_1)
+  x4 = data.frame(rs196904_0_coef_2, rs196904_0_OR_2)
+  x_rs196904 = rbind(x2, x3, x4)
+  
+  save(x_rs196904, file = "~/Desktop/Rebeca/x_rs196904.rda")
+  save(x_rs5182, file = "~/Desktop/Rebeca/x_rs5182.rda" )
+  
+  load("~/Desktop/Rebeca/x_rs196904.rda")
+  load("~/Desktop/Rebeca/x_rs5182.rda")
+```
+
+
+## Calculate tercils mda
+
+```{r}
+x = hortega_genetic_1$os.mda.umol.by.mg.prot
+probs = c(.33,.66)
+mda_1 = cut(x,breaks=c(-Inf, quantile(x,probs=c(.33,.66), na.rm = TRUE),+Inf))
+
+hortega_genetic_1 = data.frame(hortega_genetic_1, mda_1 = mda_1)
+data = hortega_genetic_1
+
+
+```
+
+
+## Calculate  mda deciles?
+
+```{r}
+load("~/Desktop/Rebeca/hortega_genetic_2.rda")
+x = hortega_genetic_1$os.mda.umol.by.mg.prot
+probs = c(.1,.2,.3,.4,.5,.6,.7,.8,.9)
+mda_2 = cut(x,breaks=c(-Inf, quantile(x,probs= c(.1,.2,.3,.4,.5,.6,.7,.8,.9)
+                                      , na.rm = TRUE),+Inf))
+
+hortega_genetic_1 = data.frame(hortega_genetic_1, mda_2 = mda_2)
+data = hortega_genetic_1
+
+
+```
+
+```{r}
+
+load("~/Desktop/Rebeca/hortega_genetic_2.rda")
+x = hortega_genetic_1$os.mda.umol.by.mg.prot
+probs = c(.1,.2,.3,.4,.5,.6,.7,.8,.9)
+mda_2 = cut(x,breaks=c(-Inf, quantile(x,probs= c(.1,.2,.3,.4,.5,.6,.7,.8,.9)
+                                      , na.rm = TRUE),+Inf))
+hortega_genetic_1 = data.frame(hortega_genetic_1, mda_2 = mda_2)
+le= levels(hortega_genetic_1$mda_2)
+
+rs196904T_T = c()
+rs196904C_T = c()
+rs196904T_Tc = c()
+rs196904C_Tc = c()
+
+for (i in le){
+load("~/Desktop/Rebeca/hortega_genetic_2.rda")
+x = hortega_genetic_1$os.mda.umol.by.mg.prot
+probs = c(.1,.2,.3,.4,.5,.6,.7,.8,.9)
+mda_2 = cut(x,breaks=c(-Inf, quantile(x,probs= c(.1,.2,.3,.4,.5,.6,.7,.8,.9)
+                                      , na.rm = TRUE),+Inf))
+
+hortega_genetic_1 = data.frame(hortega_genetic_1, mda_2 = mda_2)
+print(i)
+hortega_genetic_1$mda_2 = (hortega_genetic_1$mda_2 == i)*1
+hortega_genetic_1 = data.frame(hortega_genetic_1, mda_2 = mda_2)
+data = hortega_genetic_1
+vars = "mda_2"
+res= glmSNPs(response = response ,SNP = "rs196904",
+                 vars= vars ,data= data)
+  b = coef(summary(res))
+   
+  x = data.frame(SNP = rownames(b),  coeficientes = b[,1],p.valores=b[,4])
+  
+  rs196904T_T = c(rs196904T_T, x[2,2])
+  rs196904C_T = c(rs196904C_T, x[3,2])
+  
+ res2 =  glmSNP_2(response = response ,SNP = "rs196904",
+                 vars= vars,vars_1 = vars_1 ,data= data)
+  b2 = coef(summary(res2))
+  x1_2 = data.frame( coeficientes = b2[,1],p.valores=b2[,4])
+  rs196904T_Tc =c(rs196904T_Tc, x[2,2])
+  rs196904C_Tc = c(rs196904C_Tc, x[3,2])
+  
+}
+
+k = data.frame(SNP_1 = rs196904T_Tc, x = le,  )
+p = ggplot(data = k, aes(x = x, y = rs196904T_Tc)) 
+p = ggplot(data = k, aes(x = x, y = rs196904T_Tc))
+p + geom_line()
+```
+
+```{r}
+
+tipo = hortega_genetic_1[,"rs196904"]
+ df = data.frame(data[,response],data[,vars], tipo = factor(tipo, ordered = FALSE))
+  names(df) = c(response,vars,"tipo")
+  ff = as.formula(paste0(response,"~",paste0(vars,"*","tipo")))
+  fit = glm(ff, data=df)
+  dir.create(path)
+  
+  filename = paste0(probabilidad_enfermedad,vars,SNP,"bi", ".png")
+  png(filename = paste0(path,probabilidad_enfermedad,vars,SNP,
+                        ".png", sep = ""))
+  p = ggpredict(fit,terms=c(vars,"tipo"))
+  p1 = plot(p)
+  print(p1);
+  dev.off()  
+```
+
+
+```{r}
+x =  merge(x4$SNP,x4_1$SNP)
+l3[,x]
+
+
+l4 = NULL
+for (i in 1:length(SNP)){
+  z = SNP[i]
+  
+f = grep(z, x3$SNP)  
+f1 = grep(z, x3_1$SNP)
+
+
+if(length(f) == 1 & length(f1) == 1){
+ x =  data.frame(SNP = x3_1$SNP[f], coefficient_1 = x3$coeficientes[f], p.valores_1 = x3$p.valores[f], 
+           p.valores.ajustados_1 = x3$p.valores.ajustados[f], coefficient_2 =  x3_1$coeficientes[f1],  
+           p.valores_2 = x3_1$p.valores[f1],  
+           p.valores.ajustados_2 =     x3_1$p.valores.ajustados[f1])
+}
+if(length(f) == 2 & length(f1) == 2){
+  for( k in 1:2)
+ x =  data.frame(SNP = x3_1$SNP[f], coefficient_1 = x3$coeficientes[f[k]], p.valores_1 = x3$p.valores[f[k]], 
+           p.valores.ajustados_1 = x3$p.valores.ajustados[f[k]], coefficient_2 =  x3_1$coeficientes[f1[k]],  
+           p.valores_2 = x3_1$p.valores[f1[k]],  
+           p.valores.ajustados_2 =x3_1$p.valores.ajustados[f1[k]])}
+else{}
+ l4= rbind(l4,x)
+ }
+
+
+l4_1 = l4[!duplicated(l4$SNP),]
+
+x = grep("rs196939", x3$SNP)
+x3[x,]
+
+```
+```{r}
+x4_1
+```
+
+
+```{r}
+#,"os.8oxodg.umol.by.mg.prot", "os.gssg.gsh.ratio", "os.gssg.gsh.tot.glutiatione.umol.mg.prot", "os.mda.umol.by.mg.prot"
+vars_1 = "os.8oxodg.umol.by.mg.prot"
+Adjust_confuse_variable = function(response,SNP,vars,vars_1,data){
+  data0 = data[,c(response,SNP,vars,vars_1)]
+  data0 = data0[complete.cases(data0),]
+
+ ff = as.formula(paste0(response," ~ ",paste0("(",paste0(SNP,collapse = "+"),")", "+","(",
+                                               paste0(vars_1,collapse = "+"),")")))
+                                               
+ ff_1 = as.formula(paste0(response," ~ ",paste0("(",paste0(SNP,collapse="+"),")","+","(",
+                                               paste0(vars,collapse = "+"),")", "+","(",
+                                             paste0(vars_1,collapse = "+"),")")))
+                                          
+ fit = glm(ff,data = data0, family = "binomial")
+ fit_1 = glm(ff_1 ,data = data0, family = "binomial")
+ x = anova(fit,fit_1, test = "Chisq")
+ z = x$`Pr(>Chi)`
+ z[!(is.na(z))]
+}
+
+Adjust_confuse_variable_v = Vectorize(Adjust_confuse_variable, vectorize.args = "SNP")
+
+z2 = Adjust_confuse_variable_v (response = response, SNP = SNP , vars = vars, vars_1 = vars_1, data = data)
+z3 = p.adjust(z2, method = "BH")
+d1 = which(z3 <= 0.05)
+SNPs_ajustadas_significativas_1 = names(d1)
+h = data.frame(z3)
+class(z2)
+which(is.na(unlist(z2)))
+h0 = unlist(matrix(z2))
+h1 = data.frame( adjusted.p.value = h$z3) 
+h1$adjusted.p.value
+xtable(h1, digits = c(6,6,6))
+```
+
+
+```{r}
+glmSNPs_1 = function(response,SNP,vars,data,vars_1){
+  if(is.null(vars))
+    ff = as.formula(paste0(response," ~ ",paste0(SNP,collapse="+")))
+  
+  if(!is.null(vars))
+  ff_1 = as.formula(paste0(response," ~ ",paste0("(",paste0(SNP,collapse="+"),")","*","(",
+                                               paste0(vars,collapse = "+"),")", "+","(",
+                                             paste0(vars_1,collapse = "*"),")")))
+data0 = data[,c(response,SNP,vars,vars_1)]
+data0 = data0[complete.cases(data0),]
+fit0 = glm(ff_1,data = data0)
+fit0.s = step(fit0,direction="both",trace=0)
+}
+```
+
+```{r}
+  l2 = NULL
+SNP = SNPs_ajustadas_significativas_1
+
+     for ( i in 1:length(SNPs_ajustadas_significativas_1)){
+  res= glmSNPs_1(response = response ,SNP = SNP[i],
+                 vars= vars , vars_1 = vars_1, data= data)
+  b = coef(summary(res))
+  x = data.frame( coeficientes = b[,1],p.valores=b[,4])
+    l2= rbind(l2,x)
+     }
+     
+      l3 = data.frame( SNP = rownames(l2) ,coeficientes = l2[,1],p.valores=l2[,2],
+                 p.valores.ajustados =  rs_correction(l2,2,method = "BH")[,2])  
+     x2 = grep(":.*" , l3$SNP)
+     x3 = l3[x2,]
+     s =  which(x3$p.valores.ajustados < 0.05)
+     x4 = x3[s,]
+     x5 = x3[-s,]
+      x6 = str_extract(rownames(x4), ".*:.:") 
+   x7 = str_replace(x6, ":","") 
+   x8 = str_replace(x7, "dominant homozygous","")
+   x9 = str_replace(x8, "heterozygous","")
+    x9_1 = str_replace(x9, " and ","")
+   x10_1 =  x9_1[!duplicated(x9_1)]
+```
+
+
+```{r}
+Adjust_confuse_variable = function(response,SNP,vars,data){
+  
+  data0 = data[,c(response,SNP,vars)]
+  data0 = data0[complete.cases(data0),]
+  
+ ff = as.formula(paste0(response," ~ ",paste0("(",paste0(vars,collapse = "+"),")","*","(",
+                                               paste0(vars_1,collapse = "+"),")" )))
+                                               
+ ff_1 = as.formula(paste0(response," ~ ",paste0("(",paste0(SNP,collapse="+"),")","+","(",
+                                               paste0(vars,collapse = "+"),")")))
+ fit = glm(ff,data = data0)
+ fit_1 = glm(ff_1 ,data = data0)
+   
+ x = anova(fit,fit_1, test = "Chisq")
+ z = x$`Pr(>Chi)`
+  z[!(is.na(z))]
+}
+Adjust_confuse_variable_v = Vectorize(Adjust_confuse_variable, vectorize.args = "SNP")
+x = Adjust_confuse_variable_v(response = response, SNP = x10, vars = vars, data = data)
+x1 = p.adjust(x, method = "BH")
+d = which(x1 <= 0.05)
+SNPs_ajustadas_significativas = names(d)
+h0 = t(data.frame(x))
+h = data.frame(x1)
+h1 = data.frame(p.value = h0[,1], adjusted.p.value = h$x1)
+xtable(h1, digits = c(6,6,6))
+
+```
+
+
+```{r}
+#,, ,"os.mda.umol.by.mg.prot","os.gssg.gsh.ratio", "os.8oxodg.umol.by.mg.prot"
+response = "diabetes.mellitus.type2"
+vars = c("BMI","gender","age")
+vars_1 = c("os.gssg.gsh.ratio")
+data = hortega_genetic_1
+SNP = x10
+SNP = colnames(hortega_genetic_1[304:1199])
+response = "diabetes.mellitus.type2"
+vars_1 = c("os.8oxodg.umol.by.mg.prot")
+data = hortega_genetic_1
+
+
+Adjust_confuse_variable = function(response,SNP,vars,vars_1,data){
+  data0 = data[,c(response,SNP,vars,vars_1)]
+  data0 = data0[complete.cases(data0),]
+
+ ff = as.formula(paste0(response," ~ ",paste0("(",paste0(SNP,collapse = "+"),")", "+","(",
+                                               paste0(vars,collapse = "+"),")")))
+                                               
+ ff_1 = as.formula(paste0(response," ~ ",paste0("(",paste0(SNP,collapse="+"),")","*","(",
+                                               paste0(vars,collapse = "+"),")", "+","(",
+                                             paste0(vars_1,collapse = "+"),")")))
+                                          
+ fit = glm(ff,data = data0)
+ fit_1 = glm(ff_1 ,data = data0)
+ x = anova(fit,fit_1, test = "Chisq")
+ z = x$`Pr(>Chi)`
+ z[!(is.na(z))]
+}
+
+Adjust_confuse_variable_v = Vectorize(Adjust_confuse_variable, vectorize.args = "SNP")
+
+z2 = Adjust_confuse_variable_v (response = response, SNP = SNP , vars = vars, vars_1 = vars_1, data = data)
+z3 = p.adjust(z2, method = "BH")
+d1 = which(z3 <= 0.05)
+SNPs_ajustadas_significativas_1 = names(d1)
+h = data.frame(z3)
+h1 = data.frame(p.value = z2, adjusted.p.value = h$z3)
+h1$adjusted.p.value
+xtable(h1, digits = c(6,6,6))
+
+```
+
+
+```{r}
+Adjust_confuse_variable = function(response,SNP,vars,vars_1,data){
+  data0 = data[,c(response,SNP,vars,vars_1)]
+  data0 = data0[complete.cases(data0),]
+
+ ff = as.formula(paste0(response," ~ ",paste0("(",paste0(SNP,collapse = "+"),")", "+","(",
+                                               paste0(vars,collapse = "+"),")")))
+                                               
+ ff_1 = as.formula(paste0(response," ~ ",paste0("(",paste0(SNP,collapse="+"),")","*","(",
+                                               paste0(vars_1,collapse = "+"),")", "+","(",
+                                             paste0(vars,collapse = "+"),")")))
+                                          
+ fit = glm(ff,data = data0)
+ fit_1 = glm(ff_1 ,data = data0)
+ x = anova(fit,fit_1, test = "Chisq")
+ z = x$`Pr(>Chi)`
+ z[!(is.na(z))]
+}
+
+Adjust_confuse_variable_v = Vectorize(Adjust_confuse_variable, vectorize.args = "SNP")
+
+z2 = Adjust_confuse_variable_v (response = response, SNP = SNP , vars = vars, vars_1 = vars_1, data = data)
+z3 = p.adjust(z2, method = "BH")
+d1 = which(z3 <= 0.05)
+SNPs_ajustadas_significativas_1 = names(d1)
+length(SNPs_ajustadas_significativas_1)
+length(SNP)
+setdiff(SNPs_ajustadas_significativas_1, SNP)
+
+h = data.frame(z3)
+h1 = data.frame(p.value = z2, adjusted.p.value = h$z3)
+h1$adjusted.p.value
+xtable(h1, digits = c(6,6,6))
+```
+
+
+
+```{r}
+Adjust_confuse_variable = function(response,SNP,vars,vars_1,data){
+  data0 = data[,c(response,SNP,vars,vars_1)]
+  data0 = data0[complete.cases(data0),]
+
+ ff = as.formula(paste0(response," ~ ",paste0("(",paste0(vars,collapse = "+"),")", "+","(",
+                                               paste0(vars_1,collapse = "+"),")")))
+                                               
+ ff_1 = as.formula(paste0(response," ~ ",paste0("(",paste0(SNP,collapse="+"),")","+","(",
+                                               paste0(vars,collapse = "+"),")", "+","(",
+                                             paste0(vars_1,collapse = "+"),")")))
+                                          
+ fit = glm(ff,data = data0)
+ fit_1 = glm(ff_1 ,data = data0)
+ x = anova(fit,fit_1, test = "Chisq")
+ z = x$`Pr(>Chi)`
+ z[!(is.na(z))]
+}
+
+Adjust_confuse_variable_v = Vectorize(Adjust_confuse_variable, vectorize.args = "SNP")
+
+z2 = Adjust_confuse_variable_v (response = response, SNP = SNP , vars = vars, vars_1 = vars_1, data = data)
+z3 = p.adjust(z2, method = "BH")
+d1 = which(z3 <= 0.05)
+SNPs_ajustadas_significativas_1 = names(d1)
+length(SNPs_ajustadas_significativas_1)
+length(SNP)
+setdiff(SNPs_ajustadas_significativas_1, SNP)
+
+h = data.frame(z3)
+h1 = data.frame(p.value = z2, adjusted.p.value = h$z3)
+h1$adjusted.p.value
+xtable(h1, digits = c(6,6,6))
+```
+
+
+```{r}
+response = "diabetes.mellitus.type2"
+vars = c("os.mda.umol.by.mg.prot","os.8oxodg.umol.by.mg.prot", "os.gssg.gsh.ratio")
+SNP = "rs2410718"
+data0 = data[,c(response,SNP,vars)]
+  data0 = data0[complete.cases(data0),]
+                                               
+ ff_1 = as.formula(paste0(response," ~ ",paste0("(",paste0(SNP,collapse="+"),")","*","(",
+                                               paste0(vars,collapse = "+"),")")))
+ fit_1 = glm(ff_1,data = data0)
+ fit0_1 = step(fit_1,direction="both",trace=0)
+ 
+MDA = predictorEffect("os.mda.umol.by.mg.prot",fit0_1)
+plot(MDA)
+```
+
+
+```{r}
+vars = "os.gssg.gsh.tot.glutiatione.umol.mg.prot" 
+z = funcion_final_SNP_v(response = response, SNP = SNPs_ajustadas_significativas_1, vars = vars, data = data, probabilidad_enfermedad = probabilidad_enfermedad, path = path)
+x = figure_latex_complete_v(response = response, vars = vars ,probabilidad_enfermedad = probabilidad_enfermedad, SNP = SNPs_ajustadas_significativas_1, data = data ,path2 = path2, enfermedad = enfermedad)
+
+```
+
+
+
+
+```{r}
+p = ggplot(orings,aes(x=temp,y=damage/6)) + geom_point()+
+xlab("Temperatura Farenheit") + ylab("Prob. de daño")
+
+MDA_1 = ggpredict(fit0_1, terms = c(,"os.mda.umol.by.mg.prot"))
+```
+
+
+
+
+```{r}
+#Dividir x3 : 
+
+
+  
+x3 = data.frame(x3$SNP, x3$coeficientes, x3$p.valores, x3$p.valores.ajustados)
+colnames(x3) = c("SNP","Coefficient", "P-value", "Adjusted p-value")
+x3$SNP = str_replace(x3$SNP, ":os.gssg.gsh.tot.glutiatione.umol.mg.prot","")
+ g =  list()
+ count = 1
+ count_1 = 50
+ for(i in 1:(nrow(x3)/50)){
+   g1 = x3[count:count_1,]
+   g[[i]] = g1
+   count = count + 50
+   count_1 = count_1 + 50
+ }
+   for(i in 1:10){
+     print(xtable(g[[i]], digits = c(4,4,4,4,4)), include.rownames=FALSE)
+   }
+  
+ save(l2, file = "~/Desktop/Rebeca/l2_gssh_mada_oxo.rda")
+ d1 =x3[250:nrow(x3),]
+ print(xtable(d1, digits = c(4,4,4,4,4)), include.rownames=FALSE)
+
+```
+
+
+```{r,fig.width=15, fig.height=5}
+
+x11 = data.frame( x5, log10 = -log10(x5$p.valores.ajustados))
+x12 = data.frame( x4, log10 = -log10(x4$p.valores.ajustados))
+
+      p <- ggplot(x11, aes(x = rownames(x11) , y = log10))
+    x =   p + geom_point() + geom_hline(yintercept = -log10(0.05)) +  labs(x = "SNPs",y = "-log10 adjusted p-value") + theme(axis.text.x=element_blank())  + layer(
+  mapping = (aes(x = rownames(x12) , y = log10, color = factor(p.valores.ajustados))), 
+  data = x12,
+  geom = "point", 
+  stat = "identity",
+  position = "identity"
+)  + theme(legend.position = "left" ,  legend.text = element_text (size = 8), legend.title = element_blank()) + 
+  scale_color_discrete(labels = as.character(x7))  + ggtitle("GLM analisys 8-Oxo-dG")  
+      plot(x);
+      
+```
+
+## UBE2D3
+
+```{r}
+SNPs = c(102802836,102826384,102827067,102827640, 102868625)
+Positions = c(102827611:102844099)
+
+g = data.frame(Position = Positions , SNP = rep(0, length(Positions)))
+
+for( i in SNPs){
+  z = which(g$Positions == i)
+  g$SNP[z] = 0.05
+}
+
+View(g)
+
+##HAy que hacer dos capas: gen e intron
+
+ p <- ggplot(x11, aes(x = c(102827611:102844099), y = ))
+```
+
+
+
+
+
+```{r}
+#,"os.8oxodg.umol.by.mg.prot", "os.gssg.gsh.ratio", "os.gssg.gsh.tot.glutiatione.umol.mg.prot", "os.mda.umol.by.mg.prot"
+response = "diabetes.mellitus.type2"
+SNP = "rs2410718"
+  SNPs_ajustadas_significativas_1
+vars =  c("os.gssg.gsh.tot.glutiatione.umol.mg.prot")
+data = hortega_genetic_1
+probabilidad_enfermedad = "Diabetes"
+path = "~/Desktop/Rebeca/"
+```
+
+
+
+
+```{r}
+
+tipo = hortega_genetic_1[,"rs196904"]
+ df = data.frame(data[,response],data[,vars], tipo = factor(tipo, ordered = FALSE))
+  names(df) = c(response,vars,"tipo")
+  ff = as.formula(paste0(response,"~",paste0(vars,"*","tipo")))
+  fit = glm(ff, data=df)
+  dir.create(path)
+  
+  filename = paste0(probabilidad_enfermedad,vars,SNP,"bi", ".png")
+  png(filename = paste0(path,probabilidad_enfermedad,vars,SNP,
+                        ".png", sep = ""))
+  p = ggpredict(fit,terms=c(vars,"tipo"))
+  p1 = plot(p)
+  print(p1);
+  dev.off()
+function(response, vars, SNP, tipo, probabilidad_enfermedad,
+                          data,path){
+  # Opcion que no se encuentre el heterocigoto:
+  # Opcion que no se encuentre el homocigoto_recesivo
+  df = data.frame(data[,response],data[,vars], tipo = factor(tipo, ordered = FALSE))
+  names(df) = c(response,vars,"tipo")
+  ff = as.formula(paste0(response,"~",paste0(vars,"*","tipo")))
+  fit = glm(ff, data=df)
+  dir.create(path)
+  
+  filename = paste0(probabilidad_enfermedad,vars,SNP,"bi", ".png")
+  png(filename = paste0(path,probabilidad_enfermedad,vars,SNP,
+                        ".png", sep = ""))
+  p = ggpredict(fit,terms=c(vars,"tipo"))
+  p1 = plot(p)
+  print(p1);
+  dev.off()
+}
+
+function(SNP, response, vars, probabilidad_enfermedad, data,path){
+  vars = covariable_election(response = response ,SNP = SNP ,vars = vars,data = data)
+  tipo = data[,SNP]
+  grafica_efecto_v(response = response, vars= vars , SNP = SNP, tipo = tipo , 
+                   probabilidad_enfermedad = probabilidad_enfermedad, data = data, 
+                   path = path)
+}
+
+funcion_final_SNP_v = Vectorize(funcion_final, vectorize.args = "SNP")
+
+
+
+z = funcion_final_SNP_v(response = response, SNP = "rs196904", vars = vars, data = data, probabilidad_enfermedad = probabilidad_enfermedad, path = path)
+x = figure_latex_complete_v(response = response, vars = vars ,probabilidad_enfermedad = probabilidad_enfermedad, SNP = SNPs_ajustadas_significativas_1, data = data ,path2 = path2, enfermedad = enfermedad)
+
+```
+
+
+
+```{r}
+if (!requireNamespace("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+BiocManager::install("Gviz")
+```
+
+
+```{r}
+library(Gviz)
+library(GenomicRanges)
+data(cpgIslands)
+class(cpgIslands)
+```
+
+
+
+
+#HAPLOTIPOS:
+
+```{r}
+#Lo cargamos desde el archivo de plink 
+Ha = read.table("~/Desktop/plink.assoc.csv",header = TRUE)
+
+Ha = Ha[,-5:-6]
+
+colnames(Ha) = c("Locus","Haplotype","Cases frequency", "Control frequency", "p-value", "SNPs")
+
+for( i in 1:nrow(Ha)){
+  if(Ha$Haplotype[i] == "OMNIBUS"){
+   Ha = Ha[-i,] 
+ }
+}
+
+x = p.adjust(Ha$`p-value`, method = "BH")
+Haplo = data.frame(Ha$Locus, Ha$Haplotype, Ha$`Cases frequency`, Ha$`Control frequency`, Ha$`p-value`,x, Ha$SNPs)
+colnames(Haplo) = c("Locus","Haplotype","Cases frequency","Control frequency", "p-value", "Adjusted p-value", " SNPs")
+```
+
+```{r}
+Haplo_1 = cbind(Ha$Locus, Haplo)
+
+g =  list()
+ count = 1
+ count_1 = 33
+ for(i in 1:(nrow(Haplo_1)/33)){
+   g1 = Haplo_1[count:count_1,-1]
+   g[[i]] = g1
+   count = count + 33
+   count_1 = count_1 + 33
+ }
+   for(i in 11:15){
+    print(xtable(g[[i]], digits = c(0,4,4,4,4,4,4,4)), include.rownames= FALSE)
+   }
+ 
+ d1 =Haplo[495:nrow(Haplo),]
+ print(xtable(d1,digits = c(0,4,4,4,4,4,4,4)), include.rownames= FALSE)
+
+```
+
+# Asociación haplotipos/estresoxidativo
+
+```{r}
+
+```
+
+
+```{r}
+Haplotype = read_csv("~/Nextcloud/RebecaMeleroTesis/snpspanel/data/plink_haplo.csv", col_names = FALSE)
+load("~/Nextcloud/RebecaMeleroTesis/Hortega/data/SNPs_ordenadas_1.rda")
+load("~/Desktop/Rebeca/hortega_genetic_1.rda")
+SNP = SNPs_ordenadas
+Haplotype = data.frame(Haplotype)
+Haplotype$X1[31] = "* rs1800980 rs1805165 rs6750998"
+
+#Seleccionamos los haplotipos que no se repiten:
+
+haplos = c()
+for ( i in SNP){
+  x = which(str_detect( Haplotype$X1, i))
+  print(x)
+  haplos = c(haplos,x) 
+}
+haplo = which(duplicated(haplos))
+haplo_d = haplos[-haplo]
+haplo_s = sort(haplo_d)
+```
+
+
+
+#Asocacion de los haplotipos con estres oxidativo 
+
+```{r}
+Haplotypes = levels(factor(grupos$Haplotype))
+ Aso_Haplotypes = data.frame(Haplotypes = Haplotype,p.valor_Oxo = rep(0, nrow(Haplotype)), p.valor_MDA = rep(0, nrow(Haplotype)), p.valor_GSSH = rep(0, nrow(Haplotype)), p.valor_GSSH_1 = rep(0, nrow(Haplotype)))
+
+  
+for ( n in 1:nrow(Haplotype)){
+  file = paste0("~/Desktop/Rebeca/grupos", "_", n,".rda")
+load(file)
+
+#Le pegamos el numero del haplotipo para diferenciarlo
+  for(i in 1:nrow(grupos)){
+    k = paste0("H",n,"-",grupos$Haplotype[i])
+    grupos$Haplotype[i] = k 
+  if(k == paste0("H",n, "-","NA")){
+    grupos$Haplotype[i] <-NA 
+    } 
+  }
+
+datos = data.frame( Haplotypes = as.character(grupos$Haplotype), OXO = hortega_genetic_1$os.8oxodg.umol.by.mg.prot)
+datos0 = datos[complete.cases(datos),]
+anova <- aov(datos0$OXO ~ datos0$Haplotypes)
+
+Aso_Haplotypes$p.valor_Oxo[n] = summary(anova)[[1]][["Pr(>F)"]][1]
+
+datos1 = data.frame(  Haplotypes = as.character(grupos$Haplotype), MDA = hortega_genetic_1$os.mda.umol.by.mg.prot)
+datos10 = datos1[complete.cases(datos1),]
+anova1 <- aov(datos10$MDA ~ datos10$Haplotypes)
+Aso_Haplotypes$p.valor_MDA[n] = summary(anova1)[[1]][["Pr(>F)"]][1]
+
+datos2 = data.frame( Haplotypes = as.character(grupos$Haplotype), GSSH = hortega_genetic_1$os.gssg.gsh.ratio)
+datos20 = datos2[complete.cases(datos2),]
+anova2 <- aov(datos20$GSSH ~ datos20$Haplotypes)
+Aso_Haplotypes$p.valor_GSSH[n] = summary(anova2)[[1]][["Pr(>F)"]][1]
+
+datos3 = data.frame( Haplotypes = as.character(grupos$Haplotype), GSSH_1 = hortega_genetic_1$os.gssg.gsh.tot.glutiatione.umol.mg.prot)
+datos30 = datos3[complete.cases(datos3),]
+anova3 <- aov(datos30$GSSH ~ datos30$Haplotypes)
+Aso_Haplotypes$p.valor_GSSH_1[n] = summary(anova3)[[1]][["Pr(>F)"]][1]
+
+
+}
+ 
+Aso_Haplotypes_BH = data.frame(Haplotype = Aso_Haplotypes[,1], rs_correction(Aso_Haplotypes[,2:5],2,method = "BH"))
+
+for ( n in 1:nrow(Haplotype)){
+Aso_Haplotypes_BH[n,1] = paste0("H",n)
+}
+```
+
+```{r}
+u = 1
+Group_association = function(u,SNPs, response, data, vars, vars_1){
+  # Seleccionamos las SNPs del haplotipo y las ordenamos con los alelos 
+  #separados en dos columanas,
+  SNP =  unlist(str_split(Haplotype[u,]," "))[-1]
+x2 = data.frame(rep(0,nrow(SNPs)))
+for ( n in 1:length(SNP)){
+x = data.frame(matrix(data = NA, nrow = nrow(SNPs), ncol = 2))
+for (j in 1:nrow(SNPs)){
+    i = which(colnames(SNPs) == SNP[n])
+    r = SNPs[j,i]
+    x1 = unlist(str_split(r, "/"))
+    x[j,1]= x1[1]
+    x[j,2] = x1[2]
+}
+x2 = data.frame(x2,x)
+}
+x3 = x2[,-1]
+
+x4 = data.frame(matrix(data = NA, nrow = nrow(SNPs), ncol = ncol(x3)))
+for (i in 1:ncol(x3)){
+  if (i %% 2 == 0){
+  n =  i - 1
+  x = paste(x3[,n] ,x3[,i] ,sep = " ")
+  x[x == "NA NA"] <- NA
+  x4[,i] = x
+  }
+}
+
+l0 = 1:ncol(x3)
+l = l0 %% 2
+l1 = as.logical(l)
+impars = l0[l1]
+x4[,impars] <- NULL
+
+x6 = data.frame(matrix(data= NA, nrow = nrow(SNPs), ncol = ncol(x4)))
+x7 = data.frame(matrix(data= NA, nrow = 3, ncol = ncol(x4)))
+ y = data.frame( matrix(data =NA, nrow = nrow(x7) , ncol = ncol(x7)))
+ colnames(y) = SNP
+ #Creamos un dataframe para luego poder identificar a que corresponden las
+  #llamadas combinaciones
+  
+count = 0
+for ( i in 1:ncol(x4)){
+  u0 = x4[,i]
+  c1 = substr(u0,1,1)
+  c2 = substr(u0,3,3)
+  dominant = names(which.max(table(c(c1,c2))))
+  alternative = names(which.min(table(c(c1,c2))))
+  homocigoto_dominante = paste(dominant,dominant, sep = " ")
+  heterocigoto =  paste(alternative,dominant, sep = " ")
+  heterocigoto_1 =  paste(dominant,alternative, sep = " ")
+  homocigoto_alternativo = paste(alternative,alternative, sep = " ")
+  tipo = gsub(homocigoto_dominante, 1 + count, u0)
+  tipo = gsub( heterocigoto , 2 + count, tipo)
+  tipo = gsub( heterocigoto_1 , 2 + count, tipo)
+  tipo = gsub(homocigoto_alternativo,0 + count,tipo)
+  x6[,i]= tipo
+  if (length(levels(factor(x6[,i]))) < 3){
+    d = c(levels(factor(x6[,i])), NA)
+    x7[,i]= d}  
+  if (length(levels(factor(x6[,i]))) == 3) {
+    x7[,i]= levels(factor(x6[,i]))}
+     
+     for ( z in 1:nrow(x7)){
+      if(x7[z,i] == 0 + count){
+         y[z,i] = paste0("homocigoto alternativo", ":", homocigoto_alternativo)}
+    
+     if(x7[z,i] == 1 + count){
+       y[z,i] = paste0("homocigoto dominante", ":", homocigoto_dominante)}
+    
+     if(x7[z,i] == 2 + count){
+       y[z,i] =  paste0("heterocigoto", ":", heterocigoto)}
+     }  
+  count = i + 4*i
+}
+
+file = paste0("~/Desktop/Rebeca/y", "_", u,".rda")
+save(y, file = file )
+
+combinations = expand.grid(x7)
+
+grupos = data.frame(individuals = 1:nrow(SNPs), Haplotype = rep(NA,nrow(SNPs)))
+
+for (i in 1:nrow(grupos)){
+  for (j in 1:nrow(combinations)){
+ w = which(x6[i,] == combinations[j,])
+ if (length(w) == length(SNP)){
+  grupos[i,2] = j
+   }
+  }
+}
+file = paste0("~/Desktop/Rebeca/grupos", "_", u,".rda")
+save(grupos, file = file )
+}
+
+Group_association_v = Vectorize(Group_association, vectorize.args = "u")
+```
+
+
+```{r}
+g =  list()
+ count = 1
+ count_1 = 50
+ for(i in 1:(nrow(Aso_Haplotypes_BH)/50)){
+   g1 = Aso_Haplotypes_BH[count:count_1,]
+   g[[i]] = g1
+   count = count + 50
+   count_1 = count_1 + 50
+ }
+   for(i in 1:3){
+     print(xtable(g[[i]], digits = c(9,9,9,9,9,9)), include.rownames=FALSE)
+   }
+
+ d1 = Aso_Haplotypes_BH[150:nrow(Aso_Haplotypes_BH),]
+ print(xtable(d1, digits = c(9,9,9,9,9,9)), include.rownames=FALSE)
+```
+
+
+
+
+```{r}
+response = "diabetes.mellitus.type2"
+Haplo = "Haplo"
+ x1 = list()
+for ( n in 1:nrow(Haplotype)){
+  n = 2
+  file = paste0("~/Desktop/Rebeca/grupos", "_", n,".rda")
+load(file)
+
+#Le pegamos el numero del haplotipo para diferenciarlo
+  for(i in 1:nrow(grupos)){
+    k = paste0(n,"-",grupos$Haplotype[i])
+    grupos$Haplotype[i] = k 
+  if(k == paste0(n, "-","NA")){
+    grupos$Haplotype[i] <-NA 
+    } 
+  }
+
+data_h = data.frame(Haplo= as.factor(grupos$Haplotype) , data)
+data_h$Haplo
+ data0 = data_h[,c(response,Haplo)]
+ data0 = data0[complete.cases(data0),]
+ Haplo0 = data0$Haplo
+ response0 = data0$diabetes.mellitus.type2
+ d = glm(response0 ~ Haplo0, data = data0)
+  a = printCoefmat(coef(summary(d)))
+   b = data.frame(nombres = rownames(a),coeficientes = a[,1],p.valores=a[,4], p.valores.ajustados = p.adjust(a[,4], method = "BH"))
+ x = summary(d)
+ x2 = x$coefficients
+ x1 = rbind(x1, x2)
+}
+
+```
+
+
+```{r}
+SNPs =  hortega_s[321:1308]
+vars = "os.mda.umol.by.mg.prot"
+u=14
+Group_association = function(u,SNPs, response, data, vars, vars_1){
+  # Seleccionamos las SNPs del haplotipo y las ordenamos con los alelos 
+  #separados en dos columanas,
+  SNP =  unlist(str_split(Haplotype[u,]," "))[-1]
+x2 = data.frame(rep(0,nrow(SNPs)))
+for ( n in 1:length(SNP)){
+x = data.frame(matrix(data = NA, nrow = nrow(SNPs), ncol = 2))
+for (j in 1:nrow(SNPs)){
+    i = which(colnames(SNPs) == SNP[n])
+    r = SNPs[j,i]
+    x1 = unlist(str_split(r, "/"))
+    x[j,1]= x1[1]
+    x[j,2] = x1[2]
+}
+x2 = data.frame(x2,x)
+}
+x3 = x2[,-1]
+
+x4 = data.frame(matrix(data = NA, nrow = nrow(SNPs), ncol = ncol(x3)))
+for (i in 1:ncol(x3)){
+  if (i %% 2 == 0){
+  n =  i - 1
+  x = paste(x3[,n] ,x3[,i] ,sep = " ")
+  x[x == "NA NA"] <- NA
+  x4[,i] = x
+  }
+}
+
+l0 = 1:ncol(x3)
+l = l0 %% 2
+l1 = as.logical(l)
+impars = l0[l1]
+x4[,impars] <- NULL
+
+x6 = data.frame(matrix(data= NA, nrow = nrow(SNPs), ncol = ncol(x4)))
+x7 = data.frame(matrix(data= NA, nrow = 3, ncol = ncol(x4)))
+ y = data.frame( matrix(data =NA, nrow = nrow(x7) , ncol = ncol(x7)))
+ colnames(y) = SNP
+ #Creamos un dataframe para luego poder identificar a que corresponden las
+  #llamadas combinaciones
+  
+count = 0
+for ( i in 1:ncol(x4)){
+  u0 = x4[,i]
+  c1 = substr(u0,1,1)
+  c2 = substr(u0,3,3)
+  dominant = names(which.max(table(c(c1,c2))))
+  alternative = names(which.min(table(c(c1,c2))))
+  homocigoto_dominante = paste(dominant,dominant, sep = " ")
+  heterocigoto =  paste(alternative,dominant, sep = " ")
+  heterocigoto_1 =  paste(dominant,alternative, sep = " ")
+  homocigoto_alternativo = paste(alternative,alternative, sep = " ")
+  tipo = gsub(homocigoto_dominante, 1 + count, u0)
+  tipo = gsub( heterocigoto , 2 + count, tipo)
+  tipo = gsub( heterocigoto_1 , 2 + count, tipo)
+  tipo = gsub(homocigoto_alternativo,0 + count,tipo)
+  x6[,i]= tipo
+  if (length(levels(factor(x6[,i]))) < 3){
+    d = c(levels(factor(x6[,i])), NA)
+    x7[,i]= d}  
+  if (length(levels(factor(x6[,i]))) == 3) {
+    x7[,i]= levels(factor(x6[,i]))}
+     
+     for ( z in 1:nrow(x7)){
+      if(x7[z,i] == 0 + count){
+         y[z,i] = paste0("homocigoto alternativo", ":", homocigoto_alternativo)}
+    
+     if(x7[z,i] == 1 + count){
+       y[z,i] = paste0("homocigoto dominante", ":", homocigoto_dominante)}
+    
+     if(x7[z,i] == 2 + count){
+       y[z,i] =  paste0("heterocigoto", ":", heterocigoto)}
+     }  
+  count = i + 4*i
+}
+
+file = paste0("~/Desktop/Rebeca/y", "_", u,".rda")
+save(y, file = file )
+
+combinations = expand.grid(x7)
+
+grupos = data.frame(individuals = 1:nrow(SNPs), Haplotype = rep(NA,nrow(SNPs)))
+
+for (i in 1:nrow(grupos)){
+  for (j in 1:nrow(combinations)){
+ w = which(x6[i,] == combinations[j,])
+ if (length(w) == length(SNP)){
+  grupos[i,2] = j
+   }
+  }
+}
+file = paste0("~/Desktop/Rebeca/grupos", "_", u,".rda")
+save(grupos, file = file )
+}
+
+Group_association_v = Vectorize(Group_association, vectorize.args = "u")
+```
+
+
+
+```{r}
+file = paste0("~/Desktop/Rebeca/grupos", "_", 57,".rda")
+load(file)
+
+  x = which(!(grupos$Haplotype == 4403 | grupos$Haplotype == 6196))
+  y = which(is.na(grupos$Haplotype))
+  x1 =  x[-y] 
+   grupos$Haplotype[x1] <- 0
+   
+   which(grupos$Haplotype == 6196)
+   
+if (grupos$Haplotype[i] != 6196 & !(is.na(grupos$Haplotype[i])) {
+  if (grupos$Haplotype[i] != 4403 & !(is.na(grupos$Haplotype[i])){
+    grupos$Haplotype[i] <- 0
+  }
+}
+  | grupos$Haplot
+y[i] != 4403 & !(is.na(grupos$Haplotype[i])) ) {
+  grupos$Haplotype[i] <- 0
+ }
+}
+which(grupos$Haplotype == 4403)
+```
+
+
+```{r}
+if(grupos$Haplotype[i] != 6196){
+    grupos$Haplotype[i] <- 6196
+  }
+  if (grupos$Haplotype[i] != 4403){
+    grupos$Haplotype[i] <- 4403
+  }
+}
+
+
+for (i in 10:nrow(grupos)){
+if (grupos$Haplotype[i] != 6196 || grupos$Haplotype[i] != 4403 || !(is.na(grupos$Haplotype[i]))) {
+  grupos$Haplotype[i] <- 0
+ }
+}
+  if(is.na(grupos$Haplotype[i])){
+     grupos$Haplotype[i] <- NA
+  }
+  if(grupos$Haplotype[i] != 6196){
+    grupos$Haplotype[i] <- 6196
+  }
+  if (grupos$Haplotype[i] != 4403){
+    grupos$Haplotype[i] <- 4403
+  }
+}
+
+
+if (grupos$Haplotype[i] != 6196 || grupos$Haplotype[i] != 4403 || !(is.na(grupos$Haplotype[i]))) {
+  grupos$Haplotype[i] <- 0
+}
+
+
+grupos$Haplotype[grupos$Haplotype == 6196 | grupos$Haplotype == 4403 ] <- 
+which(grupos$Haplotype == 4403)
+hortega_s$diabetes.mellitus.type2[]
+View(grupos)
+```
+
+
+```{r}
+Group_glm = function(u, response, data, vars, vars_1){
+  #Le pegamos el numero del haplotipo para diferenciarlo
+  for(i in 1:nrow(grupos)){
+    k = paste0(n,"-",grupos$Haplotype[i])
+    grupos$Haplotype[i] = k 
+  if(k == paste0(n, "-","NA")){
+    grupos$Haplotype[i] <-NA 
+    } 
+  }
+  
+  data_h = data.frame(Haplo = factor(grupos$Haplotype) , data)
+ Haplo = "Haplo"
+ data0 = data_h[,c(response,Haplo, vars)]
+ data0 = data0[complete.cases(data0),]
+
+ff = as.formula(paste0(response," ~ ",paste0("(",paste0(Haplo,collapse
+= "*"),")*(",
+paste0(vars,collapse = "+"),")")))
+   fit0 = glm(ff,data = data0)
+   fit0.s = step(fit0,direction="both",trace=0)
+   a = printCoefmat(coef(summary(fit0.s)))
+   b = data.frame(nombres = rownames(a),coeficientes = a[,1],p.valores=a[,4], p.valores.ajustados = p.adjust(a[,4], method = "BH"))
+   x1 = b[which(b$p.valores.ajustados <= 0.05),]
+   b
+ }
+xtable(b[,-1], digits = c(0,5,5,5))
+
+```
+
+```{r}
+
+combination = grupos$Haplotype[1]
+
+f = combinations[7,]
+h4= c()
+ for( h in 1:ncol(f)){
+  h1 =  y[,h][which(x7[,h] == f[,h])]
+  h2 = colnames(y)[h]
+  h3 = paste0(h1,"-",h2)
+  h4 = c(h4, h3)
+ }
+
+```
+
+
+```{r}
+vars = "os.mda.umol.by.mg.prot"
+vars = "os.8oxodg.umol.by.mg.prot"
+vars = "os.gssg.gsh.ratio"
+vars = "os.gssg.gsh.tot.glutiatione.umol.mg.prot"
+vars_1 = c("BMI","gender","age")
+l5= list()
+for ( n in 1:nrow(Haplotype)){
+  file = paste0("~/Desktop/Rebeca/grupos", "_", n,".rda")
+load(file)
+ t = Group_glm(u = u, response = response, data = data, vars = vars, vars_1 = vars_1)
+ t = data.frame(t)
+l5 = rbind(l5,t)
+}
+ l6 = data.frame( SNP = rownames(l5) ,coeficientes = l5[,2],p.valores=l5[,3],
+                 p.valores.ajustados =  rs_correction(l5,2,method = "BH")[,3])  
+ 
+ d = grep("Haplo57-4403",l6$SNP)
+ d1 = l6[d,]
+   d1
+```
+
+
+```{r}
+x2 = grep(":.*" , l6$SNP)
+     x3 = l6[x2,]
+     s =  which(x3$p.valores.ajustados < 0.05)
+     x4 = x3[s,]
+     x5 = x3[-s,]
+       x6 = str_extract( x4$SNP, ".*:")
+       x7 = str_extract(x6, ".*-") 
+       x8 = str_replace(x7, "Haplo","")
+       x9 =  str_replace(x8, "-","")
+       x10 = as.numeric(unique(x9))
+
+        x = sort(x3$p.valores.ajustados)
+   order = match(x, x3$p.valores.ajustados)
+   x3o = x3[order,]
+```
+
+
+```{r}
+g =  list()
+ count = 1
+ count_1 = 50
+ for(i in 1:(nrow(x3o)/50)){
+   g1 = x3o[count:count_1,-1]
+   g[[i]] = g1
+   count = count + 50
+   count_1 = count_1 + 50
+ }
+   for(i in 1:2){
+    d =  xtable(g[[i]], digits = c(4,4,4,4), include.rownames=FALSE)
+    print(d)
+   }
+ 
+  d1 =x3o[101:nrow(x3o),][-1]
+ xtable(d1, digits = c(4,4,4,4), include.rownames=FALSE)
+
+```
+
+```{r}
+
+x11 = c()
+for ( u in x10){
+  file = paste0("~/Desktop/Rebeca/grupos", "_", u,".rda")
+load(file)
+
+data_h = data.frame(Haplo = factor(grupos$Haplotype) , data)
+Haplo = "Haplo"
+ data0 = data_h[,c(response,Haplo,vars,vars_1)]
+ data0 = data0[complete.cases(data0),]
+
+
+ ff2 =  as.formula(paste0(response," ~ ",paste0("(",
+paste0(vars,collapse = "+"),")", "+", "(",
+paste0(vars_1,collapse = "+"),")")))
+  
+  ff3 = as.formula(paste0(response," ~ ",paste0("(",paste0(Haplo,collapse= "+"),") + (",
+paste0(vars,collapse = "+"),")", "+", "(",
+paste0(vars_1,collapse = "+"),")")))
+ 
+ fit02 = glm(ff2,data = data0)
+ fit0_13 = glm(ff3 ,data = data0)
+ 
+ 
+ x = anova(fit02,fit0_13, test = "Chisq")
+ z = x$`Pr(>Chi)`
+ z1 = z[!(is.na(z))]
+
+x11 = c(x11,z1)
+}
+
+x12 = p.adjust(x11, method = "BH")
+x13= data.frame(Haplo = x10, p.valores = x11, p.valores.ajustados = x12)
+x14 = x13[which(x13$p.valores.ajustados < 0.05),][1]
+xtable(x13, digits = c(0,0,4,4),include.rownames=FALSE)
+
+y = sort(x13$p.valores.ajustados)
+   order = match(y, x13$p.valores.ajustados)
+   yo = x13[order,]
+   yo1 = distinct(yo[,1:3])
+   xtable(yo, digits = c(0,0,4,4),include.rownames=FALSE)
+```
+
+
+```{r}
+for (n in x14$Haplo){
+  n= 130
+file = paste0("~/Desktop/Rebeca/grupos", "_", n,".rda")
+load(file)
+
+x = which(!(grupos$Haplotype == 4403 | grupos$Haplotype == 6196))
+  y = which(is.na(grupos$Haplotype))
+  x1 =  x[-y] 
+   grupos$Haplotype[x] <- 0
+
+for (i in 1:nrow(grupos)){
+if (grupos$Haplotype[i] != 123 & !(is.na(grupos$Haplotype[i]))) {
+  grupos$Haplotype[i] <- 0
+ }
+}
+
+data_h = data.frame(Haplo = factor(grupos$Haplotype) , data)
+ Haplo = "Haplo"
+ data0 = data_h[,c(response,Haplo, vars)]
+ data0 = data0[complete.cases(data0),]
+
+ df = data.frame(data_h[,response],data_h[,vars], tipo = data_h[,Haplo])
+  names(df) = c(response,vars,"tipo")
+  ff = as.formula(paste0(response,"~",paste0(vars,"*","tipo")))
+  fit = glm(ff, data=df, family = "binomial")
+  summary(fit)
+  dir.create(path)
+   filename = paste0(path,probabilidad_enfermedad,vars,n,"Haplo", ".png")
+  png(filename = filename)
+  p = ggpredict(fit,terms=c(vars,"tipo"))
+  p1 = plot(p) + 
+  scale_fill_manual(values=c("red","blue","green","darkgreen","orange","pink","yellow","brown","violet","beige","gray","black","darkred","darkblue","darkorange","darkgray","darkviolet", "light blue", "plum", "salmon", "navy", "chocolate","turquoise","light green","light gray", "sky blue","light yellow","light pink"))
+  print(p1);
+  dev.off()
+}
+``` 
+
+
+```{r}
+length(which(hortega_s$diabetes.mellitus.type2 == 0))
+```
